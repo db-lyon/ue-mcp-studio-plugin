@@ -17,6 +17,8 @@ FString UStudioNativeBinding::GetStatus()
 	Out->SetBoolField(TEXT("node"), !FStudioDaemon::FindNode().IsEmpty());
 	Out->SetBoolField(TEXT("bridgeInstalled"), FStudioDaemon::IsBridgeInstalled());
 	Out->SetStringField(TEXT("log"), FStudioDaemon::LogPath());
+	Out->SetStringField(TEXT("bridgeOnDisk"), FStudioDaemon::BridgeMarkerKind());
+	Out->SetStringField(TEXT("studioVersion"), FStudioDaemon::InstalledExtensionVersion());
 	FStudioDaemonInfo Info;
 	if (FStudioDaemon::ReadLive(Info))
 	{
@@ -37,6 +39,15 @@ FString UStudioNativeBinding::GetStatus()
 bool UStudioNativeBinding::StartDaemon()
 {
 	FString Error;
+	if (FStudioDaemon::InstalledExtensionVersion().IsEmpty())
+	{
+		if (!FStudioDaemon::InstallExtensionAndStart(Error))
+		{
+			UE_LOG(LogStudioBinding, Warning, TEXT("Studio did not install: %s"), *Error);
+			return false;
+		}
+		return true;
+	}
 	if (!FStudioDaemon::StartDaemon(Error))
 	{
 		UE_LOG(LogStudioBinding, Warning, TEXT("daemon did not start: %s"), *Error);

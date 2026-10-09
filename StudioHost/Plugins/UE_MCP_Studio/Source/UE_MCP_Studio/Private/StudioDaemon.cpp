@@ -10,6 +10,10 @@
 #include "Misc/SecureHash.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "HttpModule.h"
+#include "Interfaces/IHttpRequest.h"
+#include "Interfaces/IHttpResponse.h"
+#include "Interfaces/IProjectManager.h"
 
 #if PLATFORM_WINDOWS
 #include "Windows/AllowWindowsPlatformTypes.h"
@@ -160,16 +164,164 @@ FString FStudioDaemon::UiUrl(const FStudioDaemonInfo& Info)
 
 bool FStudioDaemon::StartDaemon(FString& OutError)
 {
-	return SpawnNpx(FString::Printf(TEXT("-y %s daemon start \"%s\""), *PackageSpec(), *ProjectFile()), OutError);
+	return SpawnNpx({ FString::Printf(TEXT("-y %s daemon start \"%s\""), *PackageSpec(), *ProjectFile()) }, OutError);
+}
+
+FString FStudioDaemon::ExtensionsDir()
+{
+	const FString Dir = FPlatformMisc::GetEnvironmentVariable(TEXT("UE_MCP_EXTENSIONS_DIR"));
+	return Dir.IsEmpty() ? FPaths::Combine(UserHome(), TEXT(".ue-mcp"), TEXT("extensions")) : Dir;
+}
+
+FString FStudioDaemon::InstalledExtensionVersion()
+{
+	FString Text;
+	if (!FFileHelper::LoadFileToString(Text, *FPaths::Combine(ExtensionsDir(), TEXT("studio"), TEXT("package.json"))))
+	{
+		return FString();
+	}
+	TSharedPtr<FJsonObject> Json;
+	FString Version;
+	if (FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Json) && Json.IsValid())
+	{
+		Json->TryGetStringField(TEXT("version"), Version);
+	}
+	return Version;
+}
+
+FString FStudioDaemon::ExtensionManifestUrl()
+{
+	const FString Override = FPlatformMisc::GetEnvironmentVariable(TEXT("UE_MCP_STUDIO_CHANNEL"));
+	return Override.IsEmpty()
+		? FString(TEXT("https://github.com/db-lyon/ue-mcp-studio-releases/releases/latest/download/latest.json"))
+		: Override;
+}
+
+bool FStudioDaemon::InstallExtensionAndStart(FString& OutError)
+{
+	return SpawnNpx({
+		FString::Printf(TEXT("-y %s extension install \"%s\" \"%s\""), *PackageSpec(), *ExtensionManifestUrl(), *ProjectFile()),
+		FString::Printf(TEXT("-y %s daemon start \"%s\""), *PackageSpec(), *ProjectFile()),
+	}, OutError);
+}
+
+void FStudioDaemon::EnsureRunning()
+{
+	if (!IsBridgeInstalled() || FindNode().IsEmpty())
+	{
+		return;
+	}
+	FString Error;
+	const FString Installed = InstalledExtensionVersion();
+	if (Installed.IsEmpty())
+	{
+		if (!InstallExtensionAndStart(Error))
+		{
+			UE_LOG(LogStudio, Warning, TEXT("could not install Studio: %s"), *Error);
+		}
+		return;
+	}
+	FStudioDaemonInfo Info;
+	if (!ReadLive(Info) && !StartDaemon(Error))
+	{
+		UE_LOG(LogStudio, Warning, TEXT("daemon did not start: %s"), *Error);
+	}
+
+	// A newer release replaces the extension; the install restarts the daemon to load it.
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
+	Request->SetURL(ExtensionManifestUrl());
+	Request->SetVerb(TEXT("GET"));
+	Request->OnProcessRequestComplete().BindLambda([Installed](FHttpRequestPtr, FHttpResponsePtr Response, bool bOk)
+	{
+		if (!bOk || !Response.IsValid() || Response->GetResponseCode() != 200)
+		{
+			return;
+		}
+		TSharedPtr<FJsonObject> Json;
+		FString Latest;
+		if (!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Response->GetContentAsString()), Json) || !Json.IsValid()
+			|| !Json->TryGetStringField(TEXT("version"), Latest) || Latest.IsEmpty() || Latest == Installed)
+		{
+			return;
+		}
+		UE_LOG(LogStudio, Log, TEXT("updating Studio %s -> %s"), *Installed, *Latest);
+		FString UpdateError;
+		if (!InstallExtensionAndStart(UpdateError))
+		{
+			UE_LOG(LogStudio, Warning, TEXT("could not update Studio: %s"), *UpdateError);
+		}
+	});
+	Request->ProcessRequest();
+}
+
+FString FStudioDaemon::BridgeMarkerKind()
+{
+	FString Text;
+	const FString Marker = FPaths::Combine(FPaths::ProjectPluginsDir(), TEXT("UE_MCP_Bridge"), TEXT(".ue-mcp-install.json"));
+	if (!FFileHelper::LoadFileToString(Text, *Marker))
+	{
+		return FString();
+	}
+	TSharedPtr<FJsonObject> Json;
+	FString Kind;
+	if (FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Json) && Json.IsValid())
+	{
+		Json->TryGetStringField(TEXT("kind"), Kind);
+	}
+	return Kind;
+}
+
+bool FStudioDaemon::LoadInstalledBridge(FString& OutError)
+{
+	if (IsBridgeInstalled())
+	{
+		return true;
+	}
+	if (BridgeMarkerKind() != TEXT("binary"))
+	{
+		OutError = TEXT("the bridge is not installed as binaries; restart the editor to build it");
+		return false;
+	}
+	// init enabled the plugins in the .uproject on disk; the editor's copy has to agree,
+	// or its next save of the descriptor would drop them.
+	FString Text;
+	TSharedPtr<FJsonObject> Descriptor;
+	if (FFileHelper::LoadFileToString(Text, *ProjectFile())
+		&& FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Descriptor) && Descriptor.IsValid())
+	{
+		const TArray<TSharedPtr<FJsonValue>>* Plugins = nullptr;
+		if (Descriptor->TryGetArrayField(TEXT("Plugins"), Plugins))
+		{
+			for (const TSharedPtr<FJsonValue>& Entry : *Plugins)
+			{
+				const TSharedPtr<FJsonObject>* Obj = nullptr;
+				FString Name;
+				bool bEnabled = false;
+				if (Entry->TryGetObject(Obj) && (*Obj)->TryGetStringField(TEXT("Name"), Name) && (*Obj)->TryGetBoolField(TEXT("Enabled"), bEnabled) && bEnabled)
+				{
+					FText Ignored;
+					IProjectManager::Get().SetPluginEnabled(Name, true, Ignored);
+				}
+			}
+		}
+	}
+	IPluginManager::Get().MountNewlyCreatedPlugin(TEXT("UE_MCP_Bridge"));
+	if (!IsBridgeInstalled())
+	{
+		OutError = TEXT("the bridge plugin did not mount");
+		return false;
+	}
+	UE_LOG(LogStudio, Log, TEXT("loaded the newly installed bridge without a restart"));
+	return true;
 }
 
 bool FStudioDaemon::InstallBridge(FString& OutError)
 {
 	// No bridge yet, so no version to pin: the current release. init chooses source or binaries itself.
-	return SpawnNpx(FString::Printf(TEXT("-y ue-mcp@latest init --yes --json --project=\"%s\""), *ProjectFile()), OutError);
+	return SpawnNpx({ FString::Printf(TEXT("-y ue-mcp@latest init --yes --json --project=\"%s\""), *ProjectFile()) }, OutError);
 }
 
-bool FStudioDaemon::SpawnNpx(const FString& Arguments, FString& OutError)
+bool FStudioDaemon::SpawnNpx(const TArray<FString>& Commands, FString& OutError)
 {
 	const FString Node = FindNode();
 	if (Node.IsEmpty())
@@ -180,7 +332,10 @@ bool FStudioDaemon::SpawnNpx(const FString& Arguments, FString& OutError)
 	const FString NodeDir = FPaths::GetPath(Node);
 	const FString Log = LogPath();
 	IFileManager::Get().MakeDirectory(*FPaths::GetPath(Log), true);
-	UE_LOG(LogStudio, Log, TEXT("npx %s"), *Arguments);
+	for (const FString& Arguments : Commands)
+	{
+		UE_LOG(LogStudio, Log, TEXT("npx %s"), *Arguments);
+	}
 
 #if PLATFORM_WINDOWS
 	// npx is a .cmd script, so it runs under cmd. Created with CreateProcessW rather
@@ -192,7 +347,13 @@ bool FStudioDaemon::SpawnNpx(const FString& Arguments, FString& OutError)
 	const FString Npx = Native(FPaths::Combine(NodeDir, TEXT("npx.cmd")));
 	const FString Cmd = Native(FPaths::Combine(FPlatformMisc::GetEnvironmentVariable(TEXT("SystemRoot")), TEXT("System32"), TEXT("cmd.exe")));
 	const FString WorkDir = Native(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir()));
-	FString CommandLine = FString::Printf(TEXT("\"%s\" /d /s /c \"\"%s\" %s >> \"%s\" 2>&1\""), *Cmd, *Npx, *Arguments, *Native(Log));
+	// Each step runs only when the one before it succeeded.
+	TArray<FString> Steps;
+	for (const FString& Arguments : Commands)
+	{
+		Steps.Add(FString::Printf(TEXT("\"%s\" %s >> \"%s\" 2>&1"), *Npx, *Arguments, *Native(Log)));
+	}
+	FString CommandLine = FString::Printf(TEXT("\"%s\" /d /s /c \"%s\""), *Cmd, *FString::Join(Steps, TEXT(" && ")));
 
 	// node and npx must resolve even when the editor was started without them on PATH.
 	const FString Path = NodeDir + TEXT(";") + FPlatformMisc::GetEnvironmentVariable(TEXT("PATH"));
@@ -221,7 +382,12 @@ bool FStudioDaemon::SpawnNpx(const FString& Arguments, FString& OutError)
 	return true;
 #else
 	const FString Npx = FPaths::Combine(NodeDir, TEXT("npx"));
-	const FString Shell = FString::Printf(TEXT("-c \"PATH='%s':$PATH '%s' %s >> '%s' 2>&1\""), *NodeDir, *Npx, *Arguments.Replace(TEXT("\""), TEXT("'")), *Log);
+	TArray<FString> Steps;
+	for (const FString& Arguments : Commands)
+	{
+		Steps.Add(FString::Printf(TEXT("'%s' %s >> '%s' 2>&1"), *Npx, *Arguments.Replace(TEXT("\""), TEXT("'")), *Log));
+	}
+	const FString Shell = FString::Printf(TEXT("-c \"PATH='%s':$PATH; %s\""), *NodeDir, *FString::Join(Steps, TEXT(" && ")));
 	FProcHandle Handle = FPlatformProcess::CreateProc(TEXT("/bin/sh"), *Shell, true, true, true, nullptr, 0, *FPaths::ProjectDir(), nullptr);
 	if (!Handle.IsValid())
 	{

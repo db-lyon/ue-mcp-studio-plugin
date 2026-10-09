@@ -51,6 +51,14 @@
           '<button id="dl">Download Node.js</button><button class="secondary" id="again">Check again</button>');
         document.getElementById("dl").onclick = function () { call("opennodedownload"); };
         document.getElementById("again").onclick = check;
+      } else if (!s.bridgeInstalled && s.bridgeOnDisk === "source") {
+        render('<p><strong>Restart to build the bridge</strong></p>' +
+          '<p class="muted">The bridge was installed from source, so the editor builds it on the next start.</p>' +
+          '<button id="restart">Restart editor</button>');
+        document.getElementById("restart").onclick = function () { call("restarteditor"); };
+      } else if (!s.bridgeInstalled && s.bridgeOnDisk === "binary") {
+        render('<p><strong>Loading the bridge</strong></p><p class="muted">No restart needed.</p>');
+        schedule();
       } else if (!s.bridgeInstalled) {
         render('<p><strong>Install the ue-mcp bridge</strong></p>' +
           '<p class="muted">The bridge plugin lets ue-mcp work in this editor. Installing it takes a minute, then the editor restarts once.</p>' +
@@ -59,15 +67,16 @@
         document.getElementById("install").onclick = function () {
           this.disabled = true;
           call("installbridge").then(function (ok) {
-            render(ok
-              ? '<p><strong>Installing</strong></p><p class="muted">When the log above says it finished, restart the editor.</p><button id="restart">Restart editor</button>'
-              : '<p class="error">The install could not start. See <span class="mono">' + s.log + '</span>.</p>');
-            var r = document.getElementById("restart");
-            if (r) r.onclick = function () { call("restarteditor"); };
+            if (!ok) {
+              render('<p class="error">The install could not start. See <span class="mono">' + s.log + '</span>.</p>');
+              return;
+            }
+            render('<p><strong>Installing</strong></p><p class="muted">This takes a minute. Progress is written to <span class="mono">' + s.log + '</span>.</p>');
+            schedule();
           });
         };
       } else if (!s.daemon) {
-        render('<p><strong>Starting ue-mcp</strong></p><p class="muted">This takes a few seconds the first time.</p>' +
+        render('<p><strong>' + (s.studioVersion ? 'Starting ue-mcp' : 'Installing Studio') + '</strong></p><p class="muted">This takes a few seconds the first time.</p>' +
           '<button class="secondary" id="start">Start again</button>');
         document.getElementById("start").onclick = function () { call("startdaemon"); };
         schedule();

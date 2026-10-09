@@ -37,5 +37,6 @@ private:
 	FTSTicker::FDelegateHandle Ticker;
 	/** Port of the daemon the UI was loaded from, 0 while on the bootstrap page. */
 	int32 LoadedPort = 0;
+	bool bTriedLoadBridge = false;
 	FString LoadedToken;
 };

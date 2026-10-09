@@ -38,15 +38,7 @@ public:
 			ECVF_Default);
 
 		// The daemon is the product; the tab is only a view. Start it with the editor, not the tab.
-		FStudioDaemonInfo Info;
-		if (!FStudioDaemon::ReadLive(Info) && FStudioDaemon::IsBridgeInstalled() && !FStudioDaemon::FindNode().IsEmpty())
-		{
-			FString Error;
-			if (!FStudioDaemon::StartDaemon(Error))
-			{
-				UE_LOG(LogStudioModule, Warning, TEXT("daemon did not start: %s"), *Error);
-			}
-		}
+		FStudioDaemon::EnsureRunning();
 	}
 
 	virtual void ShutdownModule() override

@@ -70,6 +70,21 @@ FString SStudioPanel::BootstrapUrl() const
 
 bool SStudioPanel::Poll(float)
 {
+	// A bridge installed as binaries from the bootstrap page loads without a restart.
+	if (!FStudioDaemon::IsBridgeInstalled() && FStudioDaemon::BridgeMarkerKind() == TEXT("binary") && !bTriedLoadBridge)
+	{
+		bTriedLoadBridge = true;
+		FString Error;
+		if (FStudioDaemon::LoadInstalledBridge(Error))
+		{
+			FStudioDaemon::EnsureRunning();
+		}
+		else
+		{
+			UE_LOG(LogStudioPanel, Warning, TEXT("%s"), *Error);
+		}
+	}
+
 	FStudioDaemonInfo Info;
 	const bool bLive = FStudioDaemon::ReadLive(Info);
 	if (bLive && (Info.Port != LoadedPort || Info.Token != LoadedToken))

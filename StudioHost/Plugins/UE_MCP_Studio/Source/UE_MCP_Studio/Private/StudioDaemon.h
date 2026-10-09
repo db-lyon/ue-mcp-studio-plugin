@@ -55,6 +55,33 @@ public:
 	/** Where Studio writes the output of the processes it starts. */
 	static FString LogPath();
 
+	/** Where daemon extensions live: UE_MCP_EXTENSIONS_DIR, else ~/.ue-mcp/extensions. */
+	static FString ExtensionsDir();
+
+	/** Version of the installed Studio extension, or empty when it is not installed. */
+	static FString InstalledExtensionVersion();
+
+	/** The release manifest the extension installs from. UE_MCP_STUDIO_CHANNEL overrides it. */
+	static FString ExtensionManifestUrl();
+
+	/** Install or update the Studio extension, then start the daemon, as one detached process. */
+	static bool InstallExtensionAndStart(FString& OutError);
+
+	/**
+	 * Bring Studio up: the extension installed and current, the daemon running.
+	 * Checks the release channel for a newer extension in the background.
+	 */
+	static void EnsureRunning();
+
+	/** The kind in this project's bridge install marker ("source" or "binary"), or empty. */
+	static FString BridgeMarkerKind();
+
+	/**
+	 * Mount and load a bridge installed as binaries while the editor runs, so a
+	 * first install needs no restart. Source installs need a build and a restart.
+	 */
+	static bool LoadInstalledBridge(FString& OutError);
+
 private:
-	static bool SpawnNpx(const FString& Arguments, FString& OutError);
+	static bool SpawnNpx(const TArray<FString>& Commands, FString& OutError);
 };

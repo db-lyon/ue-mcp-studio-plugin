@@ -19,6 +19,7 @@ public class UE_MCP_Studio : ModuleRules
 			"WebBrowser",
 			"Projects",
 			"Json",
+			"HTTP",
 		});
 	}
 }
