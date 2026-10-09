@@ -5,6 +5,7 @@
 #include "Containers/Ticker.h"
 #include "IWebBrowserWindow.h"
 #include "Interfaces/IPluginManager.h"
+#include "Misc/EngineVersionComparison.h"
 #include "Misc/Paths.h"
 #include "SWebBrowser.h"
 #include "WebBrowserModule.h"
@@ -30,7 +31,9 @@ void SStudioPanel::Construct(const FArguments& InArgs)
 	FCreateBrowserWindowSettings Settings;
 	Settings.InitialURL = BootstrapUrl();
 	Settings.BrowserFrameRate = 60;
+#if !UE_VERSION_OLDER_THAN(5, 8, 0)
 	Settings.UserAgentApplication = IWebBrowserModule::MakeUserAgentApplication(TEXT("UE-MCP-Studio"));
+#endif
 	IWebBrowserSingleton* Singleton = WebModule.GetSingleton();
 	const TSharedPtr<IWebBrowserWindow> Window = Singleton ? Singleton->CreateBrowserWindow(Settings) : nullptr;
 	if (!Window.IsValid())
