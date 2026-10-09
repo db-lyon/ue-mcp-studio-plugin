@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>UE-MCP Studio</title>
+<style>
+  :root { --bg: #1a1a1a; --panel: #242424; --line: #383838; --text: #e6e6e6; --muted: #9a9a9a; --accent: #3d8bfd; --bad: #e05a4f; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.5 system-ui, "Segoe UI", sans-serif; }
+  main { max-width: 560px; margin: 48px auto; padding: 0 16px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 16px; margin-top: 16px; }
+  .muted { color: var(--muted); }
+  .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12px; overflow-wrap: anywhere; }
+  button { background: var(--accent); color: #fff; border: 0; border-radius: 4px; padding: 6px 14px; font: inherit; cursor: pointer; margin: 8px 8px 0 0; }
+  button.secondary { background: transparent; color: var(--text); border: 1px solid var(--line); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .error { color: var(--bad); }
+</style>
+</head>
+<body>
+<main>
+  <h1>UE-MCP Studio</h1>
+  <p class="muted">Getting this project ready.</p>
+  <div class="card" id="step"><p class="muted">Checking...</p></div>
+</main>
+<script>
+  // The editor binds window.ue.studio. Opened outside the editor there is nothing to drive.
+  var studio = window.ue && window.ue.studio;
+  var step = document.getElementById("step");
+  var waiting = null;
+
+  function render(html) { step.innerHTML = html; }
+
+  function call(name, arg) {
+    if (!studio) return Promise.resolve(null);
+    return arg === undefined ? studio[name]() : studio[name](arg);
+  }
+
+  function check() {
+    if (!studio) {
+      render('<p>This page runs inside the editor. In a browser, open the URL from <span class="mono">npx ue-mcp daemon open</span>.</p>');
+      return;
+    }
+    call("getstatus").then(function (raw) {
+      var s = JSON.parse(raw);
+      if (!s.node) {
+        render('<p><strong>Install Node.js</strong></p>' +
+          '<p class="muted">ue-mcp runs on Node.js. Install the LTS version, then come back here.</p>' +
+          '<button id="dl">Download Node.js</button><button class="secondary" id="again">Check again</button>');
+        document.getElementById("dl").onclick = function () { call("opennodedownload"); };
+        document.getElementById("again").onclick = check;
+      } else if (!s.bridgeInstalled) {
+        render('<p><strong>Install the ue-mcp bridge</strong></p>' +
+          '<p class="muted">The bridge plugin lets ue-mcp work in this editor. Installing it takes a minute, then the editor restarts once.</p>' +
+          '<button id="install">Install</button>' +
+          '<p class="muted">Progress is written to <span class="mono">' + s.log + '</span></p>');
+        document.getElementById("install").onclick = function () {
+          this.disabled = true;
+          call("installbridge").then(function (ok) {
+            render(ok
+              ? '<p><strong>Installing</strong></p><p class="muted">When the log above says it finished, restart the editor.</p><button id="restart">Restart editor</button>'
+              : '<p class="error">The install could not start. See <span class="mono">' + s.log + '</span>.</p>');
+            var r = document.getElementById("restart");
+            if (r) r.onclick = function () { call("restarteditor"); };
+          });
+        };
+      } else if (!s.daemon) {
+        render('<p><strong>Starting ue-mcp</strong></p><p class="muted">This takes a few seconds the first time.</p>' +
+          '<button class="secondary" id="start">Start again</button>');
+        document.getElementById("start").onclick = function () { call("startdaemon"); };
+        schedule();
+      } else {
+        render('<p>Connecting to ue-mcp ' + s.daemon.version + '...</p>');
+        schedule();
+      }
+    });
+  }
+
+  // While waiting on the daemon, keep checking; the panel switches to the UI when it is up.
+  function schedule() {
+    if (waiting) clearTimeout(waiting);
+    waiting = setTimeout(check, 2000);
+  }
+
+  check();
+</script>
+</body>
+</html>

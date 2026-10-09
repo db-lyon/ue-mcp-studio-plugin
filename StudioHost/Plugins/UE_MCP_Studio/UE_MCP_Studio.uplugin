@@ -1,0 +1,21 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.1.0",
+	"FriendlyName": "UE-MCP Studio",
+	"Description": "The in-editor client for ue-mcp: setup, agents, flows and logs in a dock tab.",
+	"Category": "Editor",
+	"CreatedBy": "ue-mcp",
+	"CreatedByURL": "https://ue-mcp.com",
+	"CanContainContent": false,
+	"IsBetaVersion": true,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "UE_MCP_Studio",
+			"Type": "Editor",
+			"LoadingPhase": "PostEngineInit",
+			"PlatformAllowList": [ "Win64", "Mac", "Linux" ]
+		}
+	]
+}

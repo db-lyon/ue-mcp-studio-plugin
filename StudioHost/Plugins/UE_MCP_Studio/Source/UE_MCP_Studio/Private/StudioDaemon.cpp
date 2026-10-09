@@ -1,0 +1,224 @@
+#include "StudioDaemon.h"
+
+#include "Dom/JsonObject.h"
+#include "HAL/FileManager.h"
+#include "HAL/PlatformMisc.h"
+#include "HAL/PlatformProcess.h"
+#include "Interfaces/IPluginManager.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Misc/SecureHash.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
+
+#if PLATFORM_WINDOWS
+#include "Windows/AllowWindowsPlatformTypes.h"
+#include <windows.h>
+#include "Windows/HideWindowsPlatformTypes.h"
+#endif
+
+DEFINE_LOG_CATEGORY_STATIC(LogStudio, Log, All);
+
+namespace
+{
+	FString UserHome()
+	{
+#if PLATFORM_WINDOWS
+		return FPlatformMisc::GetEnvironmentVariable(TEXT("USERPROFILE"));
+#else
+		return FPlatformMisc::GetEnvironmentVariable(TEXT("HOME"));
+#endif
+	}
+
+	FString ProjectFile()
+	{
+		return FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath());
+	}
+
+	/** The PATH entries, split on the platform separator. */
+	TArray<FString> PathEntries()
+	{
+		TArray<FString> Out;
+		FPlatformMisc::GetEnvironmentVariable(TEXT("PATH")).ParseIntoArray(Out, PLATFORM_WINDOWS ? TEXT(";") : TEXT(":"));
+		return Out;
+	}
+}
+
+FString FStudioDaemon::NormalizedProjectRoot()
+{
+	FString Root = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
+	Root.ReplaceInline(TEXT("\\"), TEXT("/"));
+	while (Root.EndsWith(TEXT("/")))
+	{
+		Root.LeftChopInline(1);
+	}
+	return Root.ToLower();
+}
+
+FString FStudioDaemon::DiscoveryPath()
+{
+	FString Dir = FPlatformMisc::GetEnvironmentVariable(TEXT("UE_MCP_DAEMON_DIR"));
+	if (Dir.IsEmpty())
+	{
+		Dir = FPaths::Combine(UserHome(), TEXT(".ue-mcp"), TEXT("daemons"));
+	}
+	const FTCHARToUTF8 Utf8(*NormalizedProjectRoot());
+	FSHAHash Hash;
+	FSHA1::HashBuffer(Utf8.Get(), Utf8.Length(), Hash.Hash);
+	const FString Key = BytesToHex(Hash.Hash, sizeof(Hash.Hash)).ToLower().Left(16);
+	return FPaths::Combine(Dir, Key + TEXT(".json"));
+}
+
+bool FStudioDaemon::ReadLive(FStudioDaemonInfo& Out)
+{
+	FString Text;
+	if (!FFileHelper::LoadFileToString(Text, *DiscoveryPath()))
+	{
+		return false;
+	}
+	TSharedPtr<FJsonObject> Json;
+	if (!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Json) || !Json.IsValid())
+	{
+		return false;
+	}
+	FString Root;
+	if (!Json->TryGetStringField(TEXT("projectRoot"), Root) || Root != NormalizedProjectRoot())
+	{
+		return false;
+	}
+	FStudioDaemonInfo Info;
+	Info.Pid = static_cast<int32>(Json->GetNumberField(TEXT("pid")));
+	Info.Port = static_cast<int32>(Json->GetNumberField(TEXT("port")));
+	Json->TryGetStringField(TEXT("token"), Info.Token);
+	Json->TryGetStringField(TEXT("version"), Info.Version);
+	if (Info.Pid <= 0 || Info.Port <= 0 || Info.Token.IsEmpty() || !FPlatformProcess::IsApplicationRunning(Info.Pid))
+	{
+		return false;
+	}
+	Out = Info;
+	return true;
+}
+
+FString FStudioDaemon::FindNode()
+{
+	const FString Exe = PLATFORM_WINDOWS ? TEXT("node.exe") : TEXT("node");
+	for (const FString& Dir : PathEntries())
+	{
+		const FString Candidate = FPaths::Combine(Dir.TrimQuotes(), Exe);
+		if (IFileManager::Get().FileExists(*Candidate))
+		{
+			return Candidate;
+		}
+	}
+	// A GUI launch may not carry the PATH a shell would, so look where installers put it.
+	TArray<FString> Known;
+#if PLATFORM_WINDOWS
+	Known.Add(FPaths::Combine(FPlatformMisc::GetEnvironmentVariable(TEXT("ProgramFiles")), TEXT("nodejs"), Exe));
+	Known.Add(FPaths::Combine(FPlatformMisc::GetEnvironmentVariable(TEXT("NVM_SYMLINK")), Exe));
+#else
+	Known.Add(TEXT("/usr/local/bin/node"));
+	Known.Add(TEXT("/opt/homebrew/bin/node"));
+	Known.Add(TEXT("/usr/bin/node"));
+#endif
+	for (const FString& Candidate : Known)
+	{
+		if (IFileManager::Get().FileExists(*Candidate))
+		{
+			return Candidate;
+		}
+	}
+	return FString();
+}
+
+bool FStudioDaemon::IsBridgeInstalled()
+{
+	return IPluginManager::Get().FindPlugin(TEXT("UE_MCP_Bridge")).IsValid();
+}
+
+FString FStudioDaemon::PackageSpec()
+{
+	const TSharedPtr<IPlugin> Bridge = IPluginManager::Get().FindPlugin(TEXT("UE_MCP_Bridge"));
+	const FString Version = Bridge.IsValid() ? Bridge->GetDescriptor().VersionName : FString();
+	return Version.IsEmpty() ? TEXT("ue-mcp@latest") : FString::Printf(TEXT("ue-mcp@%s"), *Version);
+}
+
+FString FStudioDaemon::LogPath()
+{
+	return FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Logs"), TEXT("UE_MCP_Studio.log")));
+}
+
+FString FStudioDaemon::UiUrl(const FStudioDaemonInfo& Info)
+{
+	return FString::Printf(TEXT("http://127.0.0.1:%d/ui/?token=%s"), Info.Port, *Info.Token);
+}
+
+bool FStudioDaemon::StartDaemon(FString& OutError)
+{
+	return SpawnNpx(FString::Printf(TEXT("-y %s daemon start \"%s\""), *PackageSpec(), *ProjectFile()), OutError);
+}
+
+bool FStudioDaemon::InstallBridge(FString& OutError)
+{
+	// No bridge yet, so no version to pin: the current release. init chooses source or binaries itself.
+	return SpawnNpx(FString::Printf(TEXT("-y ue-mcp@latest init --yes --json --project=\"%s\""), *ProjectFile()), OutError);
+}
+
+bool FStudioDaemon::SpawnNpx(const FString& Arguments, FString& OutError)
+{
+	const FString Node = FindNode();
+	if (Node.IsEmpty())
+	{
+		OutError = TEXT("Node.js is not installed");
+		return false;
+	}
+	const FString NodeDir = FPaths::GetPath(Node);
+	const FString Log = LogPath();
+	IFileManager::Get().MakeDirectory(*FPaths::GetPath(Log), true);
+	UE_LOG(LogStudio, Log, TEXT("npx %s"), *Arguments);
+
+#if PLATFORM_WINDOWS
+	// npx is a .cmd script, so it runs under cmd. Created with CreateProcessW rather
+	// than FPlatformProcess::CreateProc, which places children in a job object the
+	// editor closes on exit; the daemon has to outlive the editor.
+	const FString Npx = FPaths::Combine(NodeDir, TEXT("npx.cmd"));
+	const FString Cmd = FPaths::Combine(FPlatformMisc::GetEnvironmentVariable(TEXT("SystemRoot")), TEXT("System32"), TEXT("cmd.exe"));
+	FString CommandLine = FString::Printf(TEXT("\"%s\" /d /s /c \"\"%s\" %s >> \"%s\" 2>&1\""), *Cmd, *Npx, *Arguments, *Log);
+
+	// node and npx must resolve even when the editor was started without them on PATH.
+	const FString Path = NodeDir + TEXT(";") + FPlatformMisc::GetEnvironmentVariable(TEXT("PATH"));
+	FPlatformMisc::SetEnvironmentVar(TEXT("PATH"), *Path);
+
+	STARTUPINFOW Startup;
+	FMemory::Memzero(Startup);
+	Startup.cb = sizeof(Startup);
+	PROCESS_INFORMATION Process;
+	FMemory::Memzero(Process);
+	DWORD Flags = CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP | CREATE_BREAKAWAY_FROM_JOB;
+	BOOL bOk = ::CreateProcessW(nullptr, CommandLine.GetCharArray().GetData(), nullptr, nullptr, FALSE, Flags, nullptr, *FPaths::ProjectDir(), &Startup, &Process);
+	if (!bOk && ::GetLastError() == ERROR_ACCESS_DENIED)
+	{
+		// The editor is in a job that does not allow breakaway; start it inside the job rather than not at all.
+		Flags &= ~CREATE_BREAKAWAY_FROM_JOB;
+		bOk = ::CreateProcessW(nullptr, CommandLine.GetCharArray().GetData(), nullptr, nullptr, FALSE, Flags, nullptr, *FPaths::ProjectDir(), &Startup, &Process);
+	}
+	if (!bOk)
+	{
+		OutError = FString::Printf(TEXT("CreateProcess failed (%u)"), ::GetLastError());
+		return false;
+	}
+	::CloseHandle(Process.hThread);
+	::CloseHandle(Process.hProcess);
+	return true;
+#else
+	const FString Npx = FPaths::Combine(NodeDir, TEXT("npx"));
+	const FString Shell = FString::Printf(TEXT("-c \"PATH='%s':$PATH '%s' %s >> '%s' 2>&1\""), *NodeDir, *Npx, *Arguments.Replace(TEXT("\""), TEXT("'")), *Log);
+	FProcHandle Handle = FPlatformProcess::CreateProc(TEXT("/bin/sh"), *Shell, true, true, true, nullptr, 0, *FPaths::ProjectDir(), nullptr);
+	if (!Handle.IsValid())
+	{
+		OutError = TEXT("could not start /bin/sh");
+		return false;
+	}
+	FPlatformProcess::CloseProc(Handle);
+	return true;
+#endif
+}
