@@ -82,6 +82,9 @@ public:
 	 */
 	static bool LoadInstalledBridge(FString& OutError);
 
+	/** Set when the installed bridge cannot load without an editor restart. */
+	static bool bBridgeNeedsRestart;
+
 private:
 	static bool SpawnNpx(const TArray<FString>& Commands, FString& OutError);
 };

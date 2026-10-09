@@ -5,6 +5,7 @@
 #include "HAL/PlatformMisc.h"
 #include "HAL/PlatformProcess.h"
 #include "Interfaces/IPluginManager.h"
+#include "PluginDescriptor.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Misc/SecureHash.h"
@@ -23,8 +24,45 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogStudio, Log, All);
 
+bool FStudioDaemon::bBridgeNeedsRestart = false;
+
 namespace
 {
+	// The oldest ue-mcp with the daemon and extension install Studio needs, and
+	// the npm tag that resolves to a release at least that new.
+	const TCHAR* MinUeMcpVersion = TEXT("1.4.0-beta.1");
+	const TCHAR* DefaultUeMcpPackage = TEXT("ue-mcp@beta");
+
+	/** Semver order over X.Y.Z[-pre.N]; a prerelease sorts below its release. */
+	int32 CompareVersions(const FString& A, const FString& B)
+	{
+		auto Split = [](const FString& V, TArray<int32>& Core, TArray<FString>& Pre)
+		{
+			FString Main = V, Tail;
+			V.Split(TEXT("-"), &Main, &Tail);
+			TArray<FString> Parts;
+			Main.ParseIntoArray(Parts, TEXT("."));
+			for (int32 i = 0; i < 3; ++i) Core.Add(Parts.IsValidIndex(i) ? FCString::Atoi(*Parts[i]) : 0);
+			if (!Tail.IsEmpty()) Tail.ParseIntoArray(Pre, TEXT("."));
+		};
+		TArray<int32> CA, CB;
+		TArray<FString> PA, PB;
+		Split(A, CA, PA);
+		Split(B, CB, PB);
+		for (int32 i = 0; i < 3; ++i)
+		{
+			if (CA[i] != CB[i]) return CA[i] < CB[i] ? -1 : 1;
+		}
+		if (PA.Num() == 0 || PB.Num() == 0) return PA.Num() == PB.Num() ? 0 : (PA.Num() == 0 ? 1 : -1);
+		for (int32 i = 0; i < FMath::Min(PA.Num(), PB.Num()); ++i)
+		{
+			const bool bNumA = PA[i].IsNumeric(), bNumB = PB[i].IsNumeric();
+			const int32 C = bNumA && bNumB ? FCString::Atoi(*PA[i]) - FCString::Atoi(*PB[i]) : PA[i].Compare(PB[i]);
+			if (C != 0) return C < 0 ? -1 : 1;
+		}
+		return PA.Num() == PB.Num() ? 0 : (PA.Num() < PB.Num() ? -1 : 1);
+	}
+
 	FString UserHome()
 	{
 #if PLATFORM_WINDOWS
@@ -136,7 +174,9 @@ FString FStudioDaemon::FindNode()
 
 bool FStudioDaemon::IsBridgeInstalled()
 {
-	return IPluginManager::Get().FindPlugin(TEXT("UE_MCP_Bridge")).IsValid();
+	// Mounted, not merely discovered: a plugin added to the list but not loaded is not usable yet.
+	const TSharedPtr<IPlugin> Bridge = IPluginManager::Get().FindPlugin(TEXT("UE_MCP_Bridge"));
+	return Bridge.IsValid() && Bridge->IsMounted();
 }
 
 FString FStudioDaemon::PackageSpec()
@@ -147,9 +187,12 @@ FString FStudioDaemon::PackageSpec()
 	{
 		return FString::Printf(TEXT("\"%s\""), *Override);
 	}
+	// The bridge's own version keeps server and bridge in step, unless it predates the daemon.
 	const TSharedPtr<IPlugin> Bridge = IPluginManager::Get().FindPlugin(TEXT("UE_MCP_Bridge"));
 	const FString Version = Bridge.IsValid() ? Bridge->GetDescriptor().VersionName : FString();
-	return Version.IsEmpty() ? TEXT("ue-mcp@latest") : FString::Printf(TEXT("ue-mcp@%s"), *Version);
+	return Version.IsEmpty() || CompareVersions(Version, MinUeMcpVersion) < 0
+		? FString(DefaultUeMcpPackage)
+		: FString::Printf(TEXT("ue-mcp@%s"), *Version);
 }
 
 FString FStudioDaemon::LogPath()
@@ -305,6 +348,27 @@ bool FStudioDaemon::LoadInstalledBridge(FString& OutError)
 			}
 		}
 	}
+	// The plugin manager only knows plugins found at startup, so the new one is added to its list first.
+	const FString BridgeDescriptor = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectPluginsDir(), TEXT("UE_MCP_Bridge"), TEXT("UE_MCP_Bridge.uplugin")));
+	FText AddError;
+	if (!IPluginManager::Get().AddToPluginsList(BridgeDescriptor, &AddError))
+	{
+		OutError = FString::Printf(TEXT("the bridge plugin could not be read: %s"), *AddError.ToString());
+		return false;
+	}
+	// Engine plugins mounted late can assert (GameplayAbilitiesEditor does on 5.8), so the bridge
+	// loads now only when everything it depends on is already loaded; otherwise one restart.
+	const TSharedPtr<IPlugin> Bridge = IPluginManager::Get().FindPlugin(TEXT("UE_MCP_Bridge"));
+	for (const FPluginReferenceDescriptor& Dep : Bridge->GetDescriptor().Plugins)
+	{
+		const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(Dep.Name);
+		if (Dep.bEnabled && !Dep.bOptional && !(Plugin.IsValid() && Plugin->IsMounted()))
+		{
+			bBridgeNeedsRestart = true;
+			OutError = FString::Printf(TEXT("the bridge needs %s, which loads only at editor start; restart the editor"), *Dep.Name);
+			return false;
+		}
+	}
 	IPluginManager::Get().MountNewlyCreatedPlugin(TEXT("UE_MCP_Bridge"));
 	if (!IsBridgeInstalled())
 	{
@@ -317,8 +381,9 @@ bool FStudioDaemon::LoadInstalledBridge(FString& OutError)
 
 bool FStudioDaemon::InstallBridge(FString& OutError)
 {
-	// No bridge yet, so no version to pin: the current release. init chooses source or binaries itself.
-	return SpawnNpx({ FString::Printf(TEXT("-y ue-mcp@latest init --yes --json --project=\"%s\""), *ProjectFile()) }, OutError);
+	// No bridge yet, so no version to pin. The client path is always binaries (spec section 8), and
+	// Studio is the MCP client, so init leaves other clients' configs alone.
+	return SpawnNpx({ FString::Printf(TEXT("-y %s init --yes --json --install=binary --clients= --project=\"%s\""), *PackageSpec(), *ProjectFile()) }, OutError);
 }
 
 bool FStudioDaemon::SpawnNpx(const TArray<FString>& Commands, FString& OutError)

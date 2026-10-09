@@ -18,6 +18,7 @@ FString UStudioNativeBinding::GetStatus()
 	Out->SetBoolField(TEXT("bridgeInstalled"), FStudioDaemon::IsBridgeInstalled());
 	Out->SetStringField(TEXT("log"), FStudioDaemon::LogPath());
 	Out->SetStringField(TEXT("bridgeOnDisk"), FStudioDaemon::BridgeMarkerKind());
+	Out->SetBoolField(TEXT("bridgeNeedsRestart"), FStudioDaemon::bBridgeNeedsRestart);
 	Out->SetStringField(TEXT("studioVersion"), FStudioDaemon::InstalledExtensionVersion());
 	FStudioDaemonInfo Info;
 	if (FStudioDaemon::ReadLive(Info))

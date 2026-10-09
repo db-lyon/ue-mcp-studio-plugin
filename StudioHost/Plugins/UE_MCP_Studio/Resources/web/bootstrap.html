@@ -56,6 +56,11 @@
           '<p class="muted">The bridge was installed from source, so the editor builds it on the next start.</p>' +
           '<button id="restart">Restart editor</button>');
         document.getElementById("restart").onclick = function () { call("restarteditor"); };
+      } else if (!s.bridgeInstalled && s.bridgeOnDisk === "binary" && s.bridgeNeedsRestart) {
+        render('<p><strong>Restart to load the bridge</strong></p>' +
+          '<p class="muted">The bridge is installed. It needs engine plugins that load only when the editor starts.</p>' +
+          '<button id="restart">Restart editor</button>');
+        document.getElementById("restart").onclick = function () { call("restarteditor"); };
       } else if (!s.bridgeInstalled && s.bridgeOnDisk === "binary") {
         render('<p><strong>Loading the bridge</strong></p><p class="muted">No restart needed.</p>');
         schedule();
