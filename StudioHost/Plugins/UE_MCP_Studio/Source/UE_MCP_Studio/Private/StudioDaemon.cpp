@@ -137,6 +137,12 @@ bool FStudioDaemon::IsBridgeInstalled()
 
 FString FStudioDaemon::PackageSpec()
 {
+	// For development: any spec npx accepts, such as a local ue-mcp checkout.
+	const FString Override = FPlatformMisc::GetEnvironmentVariable(TEXT("UE_MCP_STUDIO_PACKAGE"));
+	if (!Override.IsEmpty())
+	{
+		return FString::Printf(TEXT("\"%s\""), *Override);
+	}
 	const TSharedPtr<IPlugin> Bridge = IPluginManager::Get().FindPlugin(TEXT("UE_MCP_Bridge"));
 	const FString Version = Bridge.IsValid() ? Bridge->GetDescriptor().VersionName : FString();
 	return Version.IsEmpty() ? TEXT("ue-mcp@latest") : FString::Printf(TEXT("ue-mcp@%s"), *Version);
@@ -180,9 +186,13 @@ bool FStudioDaemon::SpawnNpx(const FString& Arguments, FString& OutError)
 	// npx is a .cmd script, so it runs under cmd. Created with CreateProcessW rather
 	// than FPlatformProcess::CreateProc, which places children in a job object the
 	// editor closes on exit; the daemon has to outlive the editor.
-	const FString Npx = FPaths::Combine(NodeDir, TEXT("npx.cmd"));
-	const FString Cmd = FPaths::Combine(FPlatformMisc::GetEnvironmentVariable(TEXT("SystemRoot")), TEXT("System32"), TEXT("cmd.exe"));
-	FString CommandLine = FString::Printf(TEXT("\"%s\" /d /s /c \"\"%s\" %s >> \"%s\" 2>&1\""), *Cmd, *Npx, *Arguments, *Log);
+	// Native separators throughout: cmd reads "C:\WINDOWS/System32/cmd.exe" as an
+	// internal command plus arguments, and runs md on them.
+	auto Native = [](FString P) { FPaths::MakePlatformFilename(P); return P; };
+	const FString Npx = Native(FPaths::Combine(NodeDir, TEXT("npx.cmd")));
+	const FString Cmd = Native(FPaths::Combine(FPlatformMisc::GetEnvironmentVariable(TEXT("SystemRoot")), TEXT("System32"), TEXT("cmd.exe")));
+	const FString WorkDir = Native(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir()));
+	FString CommandLine = FString::Printf(TEXT("\"%s\" /d /s /c \"\"%s\" %s >> \"%s\" 2>&1\""), *Cmd, *Npx, *Arguments, *Native(Log));
 
 	// node and npx must resolve even when the editor was started without them on PATH.
 	const FString Path = NodeDir + TEXT(";") + FPlatformMisc::GetEnvironmentVariable(TEXT("PATH"));
@@ -194,12 +204,12 @@ bool FStudioDaemon::SpawnNpx(const FString& Arguments, FString& OutError)
 	PROCESS_INFORMATION Process;
 	FMemory::Memzero(Process);
 	DWORD Flags = CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP | CREATE_BREAKAWAY_FROM_JOB;
-	BOOL bOk = ::CreateProcessW(nullptr, CommandLine.GetCharArray().GetData(), nullptr, nullptr, FALSE, Flags, nullptr, *FPaths::ProjectDir(), &Startup, &Process);
+	BOOL bOk = ::CreateProcessW(*Cmd, CommandLine.GetCharArray().GetData(), nullptr, nullptr, false, Flags, nullptr, *WorkDir, &Startup, &Process);
 	if (!bOk && ::GetLastError() == ERROR_ACCESS_DENIED)
 	{
 		// The editor is in a job that does not allow breakaway; start it inside the job rather than not at all.
 		Flags &= ~CREATE_BREAKAWAY_FROM_JOB;
-		bOk = ::CreateProcessW(nullptr, CommandLine.GetCharArray().GetData(), nullptr, nullptr, FALSE, Flags, nullptr, *FPaths::ProjectDir(), &Startup, &Process);
+		bOk = ::CreateProcessW(*Cmd, CommandLine.GetCharArray().GetData(), nullptr, nullptr, false, Flags, nullptr, *WorkDir, &Startup, &Process);
 	}
 	if (!bOk)
 	{

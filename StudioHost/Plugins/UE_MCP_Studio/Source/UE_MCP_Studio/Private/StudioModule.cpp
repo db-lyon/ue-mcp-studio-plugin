@@ -1,4 +1,5 @@
 #include "Modules/ModuleManager.h"
+#include "HAL/IConsoleManager.h"
 #include "Framework/Docking/TabManager.h"
 #include "SStudioPanel.h"
 #include "StudioDaemon.h"
@@ -30,6 +31,12 @@ public:
 
 		UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FStudioModule::RegisterMenus));
 
+		OpenCommand = IConsoleManager::Get().RegisterConsoleCommand(
+			TEXT("Studio.Open"),
+			TEXT("Open the UE-MCP Studio tab."),
+			FConsoleCommandDelegate::CreateLambda([] { FGlobalTabmanager::Get()->TryInvokeTab(StudioTab); }),
+			ECVF_Default);
+
 		// The daemon is the product; the tab is only a view. Start it with the editor, not the tab.
 		FStudioDaemonInfo Info;
 		if (!FStudioDaemon::ReadLive(Info) && FStudioDaemon::IsBridgeInstalled() && !FStudioDaemon::FindNode().IsEmpty())
@@ -44,6 +51,11 @@ public:
 
 	virtual void ShutdownModule() override
 	{
+		if (OpenCommand)
+		{
+			IConsoleManager::Get().UnregisterConsoleObject(OpenCommand);
+			OpenCommand = nullptr;
+		}
 		UToolMenus::UnRegisterStartupCallback(this);
 		UToolMenus::UnregisterOwner(this);
 		if (FSlateApplication::IsInitialized())
@@ -53,6 +65,8 @@ public:
 	}
 
 private:
+	IConsoleObject* OpenCommand = nullptr;
+
 	TSharedRef<SDockTab> SpawnTab(const FSpawnTabArgs&)
 	{
 		return SNew(SDockTab).TabRole(ETabRole::NomadTab)[SNew(SStudioPanel)];

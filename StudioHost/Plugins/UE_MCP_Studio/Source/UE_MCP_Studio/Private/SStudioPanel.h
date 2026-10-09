@@ -3,9 +3,10 @@
 #include "CoreMinimal.h"
 #include "Widgets/SCompoundWidget.h"
 #include "UObject/StrongObjectPtr.h"
+#include "StudioNativeBinding.h"
 
 class SWebBrowser;
-class UStudioNativeBinding;
+
 struct FWebNavigationRequest;
 
 /**

@@ -7,6 +7,9 @@
 #include "Interfaces/IPluginManager.h"
 #include "Misc/Paths.h"
 #include "SWebBrowser.h"
+#include "WebBrowserModule.h"
+#include "IWebBrowserSingleton.h"
+#include "Widgets/Text/STextBlock.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogStudioPanel, Log, All);
 
@@ -14,14 +17,35 @@ void SStudioPanel::Construct(const FArguments& InArgs)
 {
 	Binding.Reset(NewObject<UStudioNativeBinding>());
 
+	// Get() loads the module; IsAvailable() before it fails on a module not yet loaded.
+	IWebBrowserModule& WebModule = IWebBrowserModule::Get();
+	if (!IWebBrowserModule::IsAvailable() || !WebModule.IsWebModuleAvailable())
+	{
+		UE_LOG(LogStudioPanel, Error, TEXT("the web browser module is not available"));
+		ChildSlot[SNew(STextBlock).Text(NSLOCTEXT("UE_MCP_Studio", "NoBrowser", "The editor's web browser is not available, so Studio cannot be shown here. Open it in a browser with: npx ue-mcp daemon open"))];
+		return;
+	}
+
+	// Created explicitly rather than by SWebBrowser, so a failure is reported instead of a spinner that never ends.
+	FCreateBrowserWindowSettings Settings;
+	Settings.InitialURL = BootstrapUrl();
+	Settings.BrowserFrameRate = 60;
+	Settings.UserAgentApplication = IWebBrowserModule::MakeUserAgentApplication(TEXT("UE-MCP-Studio"));
+	IWebBrowserSingleton* Singleton = WebModule.GetSingleton();
+	const TSharedPtr<IWebBrowserWindow> Window = Singleton ? Singleton->CreateBrowserWindow(Settings) : nullptr;
+	if (!Window.IsValid())
+	{
+		UE_LOG(LogStudioPanel, Error, TEXT("could not create a browser window (singleton %s)"), Singleton ? TEXT("present") : TEXT("missing"));
+		ChildSlot[SNew(STextBlock).Text(NSLOCTEXT("UE_MCP_Studio", "NoWindow", "The editor could not create a browser view for Studio. Open it in a browser with: npx ue-mcp daemon open"))];
+		return;
+	}
+	UE_LOG(LogStudioPanel, Log, TEXT("browser window created"));
+
 	ChildSlot
 	[
-		SAssignNew(Browser, SWebBrowser)
-		.InitialURL(BootstrapUrl())
+		SAssignNew(Browser, SWebBrowser, Window)
 		.ShowControls(false)
 		.ShowAddressBar(false)
-		.ShowErrorMessage(true)
-		.BackgroundColor(FColor(26, 26, 26))
 		.OnBeforeNavigation(this, &SStudioPanel::OnBeforeNavigation)
 		.OnBeforePopup(this, &SStudioPanel::OnBeforePopup)
 	];
