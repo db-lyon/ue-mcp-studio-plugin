@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "0.1.0-beta.1",
+	"VersionName": "0.1.0-beta.2",
 	"FriendlyName": "UE-MCP Studio",
 	"Description": "The in-editor client for ue-mcp: setup, agents, flows and logs in a dock tab.",
 	"Category": "Editor",
