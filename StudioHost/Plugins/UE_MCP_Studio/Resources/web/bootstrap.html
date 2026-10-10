@@ -64,6 +64,17 @@
     border: 2px solid rgba(232, 114, 12, 0.25); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite;
   }
   .error { color: var(--bad); }
+  .options { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .options .summary { display: flex; align-items: baseline; gap: 10px; color: var(--muted); font-size: 13px; }
+  .options .summary span { flex: 1; }
+  .link { background: none; border: 0; padding: 0; color: var(--accent-hi); font: 500 12px/1.4 var(--mono); }
+  .link:hover:not(:disabled) { background: none; text-decoration: underline; }
+  .choices { margin-top: 12px; display: none; }
+  .choices.open { display: block; }
+  .choices h3 { font: 600 10.5px/1.3 var(--mono); text-transform: uppercase; letter-spacing: 0.14em; color: var(--dim); margin: 12px 0 6px; }
+  .choices label { display: flex; align-items: center; gap: 9px; padding: 4px 0; color: var(--text); cursor: pointer; }
+  .choices label small { color: var(--dim); font-size: 12px; }
+  .choices input { accent-color: var(--accent); width: 14px; height: 14px; margin: 0; }
   @keyframes pulse { 50% { opacity: 0.35; } }
   @keyframes spin { to { transform: rotate(360deg); } }
 </style>
@@ -136,12 +147,20 @@
         schedule();
       } else if (!s.bridgeInstalled) {
         render('<p><strong>Install the ue-mcp bridge</strong></p>' +
-          '<p class="muted">The bridge plugin lets ue-mcp work in this editor. Installing it takes a minute, then the editor restarts once.</p>' +
+          '<p class="muted">The bridge plugin lets the MCP server work in this editor. Installing it takes a minute, then the editor restarts once.</p>' +
           '<div class="actions"><button id="install">Install</button></div>' +
+          '<div class="options"><div class="summary"><span id="summary">' + spin + 'Reading setup options</span>' +
+          '<button class="link" id="toggle" disabled>Options</button></div><div class="choices" id="choices"></div></div>' +
           '<p class="note">Progress is written to <span class="mono">' + s.log + '</span></p>', 1);
+        loadPlan();
+        document.getElementById("toggle").onclick = function () {
+          var open = document.getElementById("choices").classList.toggle("open");
+          this.textContent = open ? "Hide options" : "Options";
+        };
         document.getElementById("install").onclick = function () {
           this.disabled = true;
-          call("installbridge").then(function (ok) {
+          var options = chosenOptions();
+          (options ? call("runsetup", JSON.stringify(options)) : call("installbridge")).then(function (ok) {
             if (!ok) {
               render('<p class="error">The install could not start. See <span class="mono">' + s.log + '</span>.</p>', 1);
               return;
@@ -161,6 +180,87 @@
         schedule();
       }
     });
+  }
+
+  // The setup plan: init's dry run, read in the background while the Install card shows.
+  var plan = null;
+  var planStarted = 0;
+
+  function esc(t) {
+    return String(t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; });
+  }
+
+  function loadPlan() {
+    if (plan) return showPlan();
+    if (!planStarted) {
+      planStarted = Date.now();
+      call("startsetupplan");
+    }
+    call("getsetupplan").then(function (raw) {
+      var parsed = null;
+      try { parsed = raw ? JSON.parse(raw) : null; } catch (e) { parsed = null; }
+      if (parsed && parsed.plan) {
+        plan = parsed.plan;
+        showPlan();
+      } else if (Date.now() - planStarted > 90 * 1000) {
+        // No plan: Install keeps init's defaults.
+        var summary = document.getElementById("summary");
+        if (summary) summary.textContent = "Installs with the default options.";
+      } else {
+        setTimeout(loadPlan, 1000);
+      }
+    });
+  }
+
+  function engineAtLeast(v, major, minor) {
+    var m = /^(\d+)\.(\d+)/.exec(v || "");
+    return !!m && (+m[1] > major || (+m[1] === major && +m[2] >= minor));
+  }
+
+  function showPlan() {
+    var summary = document.getElementById("summary");
+    var choices = document.getElementById("choices");
+    if (!summary || !choices) return;
+    var clients = plan.clients.filter(function (c) { return c.detected; });
+    var native = engineAtLeast(plan.project.engine, 5, 8);
+    var html = "<h3>Also connect these MCP clients</h3>";
+    if (clients.length === 0) html += '<p class="note" style="margin-top:0 !important">No other MCP clients found on this machine.</p>';
+    clients.forEach(function (c) {
+      // A global client's config applies to every project, so it is never chosen for the user.
+      var on = c.selected && c.projectScoped;
+      html += '<label><input type="checkbox" data-client="' + esc(c.id) + '"' + (on ? " checked" : "") + "> " + esc(c.name) +
+        (c.projectScoped ? "" : " <small>applies to every project</small>") + "</label>";
+    });
+    if (native) {
+      html += "<h3>Tools</h3><label><input type=\"checkbox\" id=\"native\"" + (plan.nativeTools.enabled ? " checked" : "") + "> Native Unreal tools <small>Epic's own MCP tools, alongside the bridge</small></label>";
+    }
+    choices.innerHTML = html;
+    choices.onchange = summarize;
+    document.getElementById("toggle").disabled = false;
+    summarize();
+  }
+
+  function chosenOptions() {
+    if (!plan) return null;
+    var boxes = document.querySelectorAll("#choices input[data-client]");
+    var clients = [];
+    for (var i = 0; i < boxes.length; i++) if (boxes[i].checked) clients.push(boxes[i].getAttribute("data-client"));
+    var native = document.getElementById("native");
+    return {
+      clients: clients,
+      nativeTools: native ? native.checked : plan.nativeTools.enabled,
+      context: plan.contextStrategy,
+      feedback: plan.feedback,
+      skills: plan.skills,
+    };
+  }
+
+  function summarize() {
+    var o = chosenOptions();
+    var names = plan.clients.filter(function (c) { return o.clients.indexOf(c.id) >= 0; }).map(function (c) { return c.name; });
+    var text = names.length ? "Also connects " + names.join(", ") + "." : "Connects no other MCP clients.";
+    if (document.getElementById("native")) text += o.nativeTools ? " Native Unreal tools on." : " Native Unreal tools off.";
+    document.getElementById("summary").textContent = text;
   }
 
   // While waiting on the daemon, keep checking; the panel switches to the UI when it is up.
