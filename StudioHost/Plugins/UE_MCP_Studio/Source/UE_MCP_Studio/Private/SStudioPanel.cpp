@@ -5,6 +5,7 @@
 #include "StudioDaemon.h"
 #include "StudioNativeBinding.h"
 #include "Containers/Ticker.h"
+#include "HAL/PlatformProcess.h"
 #include "IWebBrowserWindow.h"
 #include "Interfaces/IPluginManager.h"
 #include "Misc/EngineVersionComparison.h"
@@ -132,6 +133,14 @@ bool SStudioPanel::OnBeforeNavigation(const FString& Url, const FWebNavigationRe
 
 bool SStudioPanel::OnBeforePopup(FString Url, FString Frame)
 {
-	UE_LOG(LogStudioPanel, Warning, TEXT("blocked popup to %s"), *Url);
+	// Links the page opens in a new window go to the system browser; nothing else leaves the panel.
+	if (Url.StartsWith(TEXT("https://")) || Url.StartsWith(TEXT("http://")))
+	{
+		FPlatformProcess::LaunchURL(*Url, nullptr, nullptr);
+	}
+	else
+	{
+		UE_LOG(LogStudioPanel, Warning, TEXT("blocked popup to %s"), *Url);
+	}
 	return true;
 }
