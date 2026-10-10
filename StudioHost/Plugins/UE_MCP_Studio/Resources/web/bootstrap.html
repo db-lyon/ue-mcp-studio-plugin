@@ -72,8 +72,8 @@
 <main>
   <div class="brand"><span class="mark"></span><span class="name">ue-mcp</span><span class="product">Studio</span></div>
   <h1>Getting this project <em>ready</em>.</h1>
-  <p class="lede">Studio sets up ue-mcp in this editor once.</p>
-  <ol class="steps" id="steps"><li>Node.js</li><li>Bridge</li><li>Studio</li></ol>
+  <p class="lede">Studio sets up its MCP server in this editor once.</p>
+  <ol class="steps" id="steps"><li>Dependencies</li><li>Bridge</li><li>MCP server</li></ol>
   <div class="card" id="step"><p class="muted"><span class="spinner"></span>Checking</p></div>
 </main>
 <script>
@@ -107,9 +107,9 @@
     call("getstatus").then(function (raw) {
       var s = JSON.parse(raw);
       if (!s.node) {
-        render('<p><strong>Install Node.js</strong></p>' +
-          '<p class="muted">ue-mcp runs on Node.js. Install the LTS version, then come back here.</p>' +
-          '<div class="actions"><button id="dl">Download Node.js</button><button class="secondary" id="again">Check again</button></div>', 0);
+        render('<p><strong>Install dependencies</strong></p>' +
+          '<p class="muted">The MCP server needs a runtime that is not on this machine yet. Download the recommended installer, run it, then check again.</p>' +
+          '<div class="actions"><button id="dl">Download</button><button class="secondary" id="again">Check again</button></div>', 0);
         document.getElementById("dl").onclick = function () { call("opennodedownload"); };
         document.getElementById("again").onclick = check;
       } else if (!s.bridgeInstalled && s.bridgeOnDisk === "source") {
@@ -151,13 +151,13 @@
           });
         };
       } else if (!s.daemon) {
-        render('<p><strong>' + spin + (s.studioVersion ? 'Starting ue-mcp' : 'Installing Studio') + '</strong></p>' +
+        render('<p><strong>' + spin + (s.studioVersion ? 'Starting the MCP server' : 'Downloading Studio') + '</strong></p>' +
           '<p class="muted">This takes a few seconds the first time.</p>' +
           '<div class="actions"><button class="secondary" id="start">Start again</button></div>', 2);
         document.getElementById("start").onclick = function () { call("startdaemon"); };
         schedule();
       } else {
-        render('<p><strong>' + spin + 'Connecting to ue-mcp ' + s.daemon.version + '</strong></p>', 2);
+        render('<p><strong>' + spin + 'Connecting to the MCP server</strong></p>', 2);
         schedule();
       }
     });
