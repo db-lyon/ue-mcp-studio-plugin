@@ -1,3 +1,5 @@
+// Copyright 2026 ue-mcp. All Rights Reserved.
+
 #include "StudioDaemon.h"
 
 #include "Dom/JsonObject.h"

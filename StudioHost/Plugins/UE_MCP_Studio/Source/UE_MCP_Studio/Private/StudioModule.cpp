@@ -1,3 +1,5 @@
+// Copyright 2026 ue-mcp. All Rights Reserved.
+
 #include "Modules/ModuleManager.h"
 #include "HAL/IConsoleManager.h"
 #include "Framework/Docking/TabManager.h"

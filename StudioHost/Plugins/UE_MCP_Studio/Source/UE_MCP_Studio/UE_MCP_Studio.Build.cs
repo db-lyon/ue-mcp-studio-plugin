@@ -1,3 +1,5 @@
+// Copyright 2026 ue-mcp. All Rights Reserved.
+
 using UnrealBuildTool;
 
 public class UE_MCP_Studio : ModuleRules

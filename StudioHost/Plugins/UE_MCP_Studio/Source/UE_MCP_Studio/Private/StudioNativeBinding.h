@@ -1,3 +1,5 @@
+// Copyright 2026 ue-mcp. All Rights Reserved.
+
 #pragma once
 
 #include "CoreMinimal.h"

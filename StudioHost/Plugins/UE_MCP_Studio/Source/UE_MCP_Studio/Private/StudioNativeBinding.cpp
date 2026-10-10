@@ -1,3 +1,5 @@
+// Copyright 2026 ue-mcp. All Rights Reserved.
+
 #include "StudioNativeBinding.h"
 
 #include "StudioDaemon.h"

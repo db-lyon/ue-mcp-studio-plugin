@@ -1,3 +1,5 @@
+// Copyright 2026 ue-mcp. All Rights Reserved.
+
 #include "SStudioPanel.h"
 
 #include "StudioDaemon.h"
