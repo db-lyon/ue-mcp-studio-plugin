@@ -30,6 +30,8 @@
   var studio = window.ue && window.ue.studio;
   var step = document.getElementById("step");
   var waiting = null;
+  // When Install started (ms); until the bridge lands on disk, keep showing progress.
+  var installing = 0;
 
   function render(html) { step.innerHTML = html; }
 
@@ -64,6 +66,13 @@
       } else if (!s.bridgeInstalled && s.bridgeOnDisk === "binary") {
         render('<p><strong>Loading the bridge</strong></p><p class="muted">No restart needed.</p>');
         schedule();
+      } else if (!s.bridgeInstalled && installing && Date.now() - installing > 5 * 60 * 1000) {
+        installing = 0;
+        render('<p class="error">The bridge did not install. See <span class="mono">' + s.log + '</span>.</p><button id="again">Try again</button>');
+        document.getElementById("again").onclick = check;
+      } else if (!s.bridgeInstalled && installing) {
+        render('<p><strong>Installing</strong></p><p class="muted">This takes a minute. Progress is written to <span class="mono">' + s.log + '</span>.</p>');
+        schedule();
       } else if (!s.bridgeInstalled) {
         render('<p><strong>Install the ue-mcp bridge</strong></p>' +
           '<p class="muted">The bridge plugin lets ue-mcp work in this editor. Installing it takes a minute, then the editor restarts once.</p>' +
@@ -76,8 +85,8 @@
               render('<p class="error">The install could not start. See <span class="mono">' + s.log + '</span>.</p>');
               return;
             }
-            render('<p><strong>Installing</strong></p><p class="muted">This takes a minute. Progress is written to <span class="mono">' + s.log + '</span>.</p>');
-            schedule();
+            installing = Date.now();
+            check();
           });
         };
       } else if (!s.daemon) {
