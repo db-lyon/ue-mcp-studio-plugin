@@ -30,10 +30,11 @@ bool FStudioDaemon::bBridgeNeedsRestart = false;
 
 namespace
 {
-	// The oldest ue-mcp with the daemon and extension install Studio needs, and
-	// the npm tag that resolves to a release at least that new.
-	const TCHAR* MinUeMcpVersion = TEXT("1.4.0-beta.1");
-	const TCHAR* DefaultUeMcpPackage = TEXT("ue-mcp@beta");
+	// Used only until the first release manifest is fetched; after that the
+	// manifest's ueMcp.min and ueMcp.package decide, so the host never needs an
+	// update to follow a ue-mcp release.
+	const TCHAR* FallbackMinUeMcpVersion = TEXT("1.4.0-beta.1");
+	const TCHAR* FallbackUeMcpPackage = TEXT("ue-mcp@beta");
 
 	/** Semver order over X.Y.Z[-pre.N]; a prerelease sorts below its release. */
 	int32 CompareVersions(const FString& A, const FString& B)
@@ -189,12 +190,29 @@ FString FStudioDaemon::PackageSpec()
 	{
 		return FString::Printf(TEXT("\"%s\""), *Override);
 	}
-	// The bridge's own version keeps server and bridge in step, unless it predates the daemon.
+	FString MinVersion = FallbackMinUeMcpVersion;
+	FString Package = FallbackUeMcpPackage;
+	FString Text;
+	TSharedPtr<FJsonObject> Manifest;
+	const TSharedPtr<FJsonObject>* UeMcp = nullptr;
+	if (FFileHelper::LoadFileToString(Text, *ManifestCachePath())
+		&& FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Manifest) && Manifest.IsValid()
+		&& Manifest->TryGetObjectField(TEXT("ueMcp"), UeMcp))
+	{
+		(*UeMcp)->TryGetStringField(TEXT("min"), MinVersion);
+		(*UeMcp)->TryGetStringField(TEXT("package"), Package);
+	}
+	// The bridge's own version keeps server and bridge in step, unless it is older than Studio needs.
 	const TSharedPtr<IPlugin> Bridge = IPluginManager::Get().FindPlugin(TEXT("UE_MCP_Bridge"));
 	const FString Version = Bridge.IsValid() ? Bridge->GetDescriptor().VersionName : FString();
-	return Version.IsEmpty() || CompareVersions(Version, MinUeMcpVersion) < 0
-		? FString(DefaultUeMcpPackage)
+	return Version.IsEmpty() || CompareVersions(Version, MinVersion) < 0
+		? Package
 		: FString::Printf(TEXT("ue-mcp@%s"), *Version);
+}
+
+FString FStudioDaemon::ManifestCachePath()
+{
+	return FPaths::Combine(UserHome(), TEXT(".ue-mcp"), TEXT("studio"), TEXT("latest.json"));
 }
 
 FString FStudioDaemon::LogPath()
@@ -282,10 +300,17 @@ void FStudioDaemon::EnsureRunning()
 		{
 			return;
 		}
+		const FString Body = Response->GetContentAsString();
 		TSharedPtr<FJsonObject> Json;
 		FString Latest;
-		if (!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Response->GetContentAsString()), Json) || !Json.IsValid()
-			|| !Json->TryGetStringField(TEXT("version"), Latest) || Latest.IsEmpty() || Latest == Installed)
+		if (!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Body), Json) || !Json.IsValid()
+			|| !Json->TryGetStringField(TEXT("version"), Latest) || Latest.IsEmpty())
+		{
+			return;
+		}
+		// Kept for the next start, when PackageSpec needs the ue-mcp pin before any network reply.
+		FFileHelper::SaveStringToFile(Body, *ManifestCachePath());
+		if (Latest == Installed)
 		{
 			return;
 		}

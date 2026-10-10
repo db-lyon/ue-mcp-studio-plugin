@@ -38,7 +38,7 @@ public:
 	/** Whether the ue-mcp bridge plugin is present in this project or the engine. */
 	static bool IsBridgeInstalled();
 
-	/** ue-mcp@<the installed bridge's version>, so the server and the bridge move together; ue-mcp@latest without one. */
+	/** ue-mcp@<the installed bridge's version>, so the server and the bridge move together; the release manifest's ueMcp.package when there is no bridge or it is older than ueMcp.min. */
 	static FString PackageSpec();
 
 	/**
@@ -65,6 +65,9 @@ public:
 
 	/** The release manifest the extension installs from. UE_MCP_STUDIO_CHANNEL overrides it. */
 	static FString ExtensionManifestUrl();
+
+	/** The last release manifest fetched, kept so the ue-mcp pin is known before the network answers. */
+	static FString ManifestCachePath();
 
 	/** Install or update the Studio extension, then start the daemon, as one detached process. */
 	static bool InstallExtensionAndStart(FString& OutError);
