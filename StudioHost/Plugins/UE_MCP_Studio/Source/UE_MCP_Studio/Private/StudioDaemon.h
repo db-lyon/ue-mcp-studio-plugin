@@ -13,6 +13,16 @@ struct FStudioDaemonInfo
 	FString Version;
 };
 
+/** The init choices the setup page offers. Clients are ue-mcp client ids (claude-code, codex, ...). */
+struct FStudioSetupOptions
+{
+	TArray<FString> Clients;
+	bool bNativeTools = true;
+	FString Context;
+	bool bFeedback = false;
+	bool bSkills = false;
+};
+
 /**
  * Finding, starting and talking to the project's ue-mcp daemon.
  *
@@ -50,6 +60,18 @@ public:
 
 	/** Install or adopt the bridge with `npx ue-mcp init --yes --json`. Output goes to the Studio log. */
 	static bool InstallBridge(FString& OutError);
+
+	/**
+	 * Run `ue-mcp init --dry-run` in the background; its JSON plan (the project's current
+	 * choices and the MCP clients found on this machine) lands at SetupPlanPath().
+	 */
+	static bool StartSetupPlan(FString& OutError);
+
+	/** Where StartSetupPlan writes the plan. Absent or partial until the run finishes. */
+	static FString SetupPlanPath();
+
+	/** `ue-mcp init` with the choices made on the setup page. */
+	static bool RunSetup(const FStudioSetupOptions& Options, FString& OutError);
 
 	/** The UI address, carrying the token the daemon exchanges for a cookie. */
 	static FString UiUrl(const FStudioDaemonInfo& Info);
@@ -91,5 +113,6 @@ public:
 	static bool bBridgeNeedsRestart;
 
 private:
-	static bool SpawnNpx(const TArray<FString>& Commands, FString& OutError);
+	/** Run each command in turn, detached. Output appends to the Studio log, or stdout goes to StdoutFile when given. */
+	static bool SpawnNpx(const TArray<FString>& Commands, FString& OutError, const FString& StdoutFile = FString());
 };

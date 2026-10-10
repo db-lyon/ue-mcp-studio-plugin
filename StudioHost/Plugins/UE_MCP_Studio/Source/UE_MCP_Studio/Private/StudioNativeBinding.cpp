@@ -6,7 +6,9 @@
 #include "Dom/JsonObject.h"
 #include "HAL/PlatformProcess.h"
 #include "Interfaces/IProjectManager.h"
+#include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "Styling/StyleColors.h"
@@ -66,6 +68,75 @@ bool UStudioNativeBinding::InstallBridge()
 	if (!FStudioDaemon::InstallBridge(Error))
 	{
 		UE_LOG(LogStudioBinding, Warning, TEXT("bridge install did not start: %s"), *Error);
+		return false;
+	}
+	return true;
+}
+
+bool UStudioNativeBinding::StartSetupPlan()
+{
+	FString Error;
+	if (!FStudioDaemon::StartSetupPlan(Error))
+	{
+		UE_LOG(LogStudioBinding, Warning, TEXT("setup plan did not start: %s"), *Error);
+		return false;
+	}
+	return true;
+}
+
+FString UStudioNativeBinding::GetSetupPlan()
+{
+	FString Text;
+	if (!FFileHelper::LoadFileToString(Text, *FStudioDaemon::SetupPlanPath()))
+	{
+		return FString();
+	}
+	// The file fills in as init writes it; only a complete document counts.
+	TSharedPtr<FJsonObject> Parsed;
+	return FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Parsed) && Parsed.IsValid() ? Text : FString();
+}
+
+bool UStudioNativeBinding::RunSetup(const FString& OptionsJson)
+{
+	static const TSet<FString> KnownClients = {
+		TEXT("claude-code"), TEXT("claude-code-global"), TEXT("claude-desktop"), TEXT("cursor"), TEXT("codex"),
+	};
+	static const TSet<FString> KnownContexts = { TEXT("micro"), TEXT("lean"), TEXT("full") };
+
+	TSharedPtr<FJsonObject> In;
+	if (!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(OptionsJson), In) || !In.IsValid())
+	{
+		UE_LOG(LogStudioBinding, Warning, TEXT("setup options are not JSON"));
+		return false;
+	}
+	FStudioSetupOptions Options;
+	const TArray<TSharedPtr<FJsonValue>>* Clients = nullptr;
+	if (In->TryGetArrayField(TEXT("clients"), Clients))
+	{
+		for (const TSharedPtr<FJsonValue>& Value : *Clients)
+		{
+			const FString Id = Value->AsString();
+			if (!KnownClients.Contains(Id))
+			{
+				UE_LOG(LogStudioBinding, Warning, TEXT("refused unknown MCP client '%s'"), *Id);
+				return false;
+			}
+			Options.Clients.AddUnique(Id);
+		}
+	}
+	In->TryGetBoolField(TEXT("nativeTools"), Options.bNativeTools);
+	In->TryGetBoolField(TEXT("feedback"), Options.bFeedback);
+	In->TryGetBoolField(TEXT("skills"), Options.bSkills);
+	if (In->TryGetStringField(TEXT("context"), Options.Context) && !KnownContexts.Contains(Options.Context))
+	{
+		UE_LOG(LogStudioBinding, Warning, TEXT("refused unknown context strategy '%s'"), *Options.Context);
+		return false;
+	}
+
+	FString Error;
+	if (!FStudioDaemon::RunSetup(Options, Error))
+	{
+		UE_LOG(LogStudioBinding, Warning, TEXT("setup did not start: %s"), *Error);
 		return false;
 	}
 	return true;

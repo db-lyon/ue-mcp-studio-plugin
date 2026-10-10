@@ -28,6 +28,22 @@ public:
 	UFUNCTION()
 	bool InstallBridge();
 
+	/** Start `ue-mcp init --dry-run`; GetSetupPlan returns its JSON once it has finished. */
+	UFUNCTION()
+	bool StartSetupPlan();
+
+	/** The dry-run plan's JSON, or an empty string while it is still running. */
+	UFUNCTION()
+	FString GetSetupPlan();
+
+	/**
+	 * Run `ue-mcp init` with the page's choices, as JSON:
+	 * { clients: string[], nativeTools: bool, context?: "micro"|"lean"|"full", feedback: bool, skills: bool }.
+	 * Unknown clients or values are refused.
+	 */
+	UFUNCTION()
+	bool RunSetup(const FString& OptionsJson);
+
 	UFUNCTION()
 	bool RestartEditor();
 

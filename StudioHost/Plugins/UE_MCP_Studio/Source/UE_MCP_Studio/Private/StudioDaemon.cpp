@@ -413,7 +413,34 @@ bool FStudioDaemon::InstallBridge(FString& OutError)
 	return SpawnNpx({ FString::Printf(TEXT("-y %s init --yes --json --install=binary --clients= --project=\"%s\""), *PackageSpec(), *ProjectFile()) }, OutError);
 }
 
-bool FStudioDaemon::SpawnNpx(const TArray<FString>& Commands, FString& OutError)
+FString FStudioDaemon::SetupPlanPath()
+{
+	return FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("UE_MCP_Studio"), TEXT("setup-plan.json")));
+}
+
+bool FStudioDaemon::StartSetupPlan(FString& OutError)
+{
+	const FString Plan = SetupPlanPath();
+	IFileManager::Get().Delete(*Plan, false, true, true);
+	IFileManager::Get().MakeDirectory(*FPaths::GetPath(Plan), true);
+	// No --clients, so the plan carries init's own default selection for each detected client.
+	return SpawnNpx({ FString::Printf(TEXT("-y %s init --yes --json --dry-run --install=binary --project=\"%s\""), *PackageSpec(), *ProjectFile()) }, OutError, Plan);
+}
+
+bool FStudioDaemon::RunSetup(const FStudioSetupOptions& Options, FString& OutError)
+{
+	FString Flags = FString::Printf(TEXT(" --clients=%s"), *FString::Join(Options.Clients, TEXT(",")));
+	Flags += Options.bNativeTools ? TEXT(" --native-tools") : TEXT(" --no-native-tools");
+	if (!Options.Context.IsEmpty())
+	{
+		Flags += FString::Printf(TEXT(" --context=%s"), *Options.Context);
+	}
+	Flags += Options.bFeedback ? TEXT(" --feedback") : TEXT(" --no-feedback");
+	Flags += Options.bSkills ? TEXT(" --skills") : TEXT(" --no-skills");
+	return SpawnNpx({ FString::Printf(TEXT("-y %s init --yes --json --install=binary%s --project=\"%s\""), *PackageSpec(), *Flags, *ProjectFile()) }, OutError);
+}
+
+bool FStudioDaemon::SpawnNpx(const TArray<FString>& Commands, FString& OutError, const FString& StdoutFile)
 {
 	const FString Node = FindNode();
 	if (Node.IsEmpty())
@@ -443,7 +470,9 @@ bool FStudioDaemon::SpawnNpx(const TArray<FString>& Commands, FString& OutError)
 	TArray<FString> Steps;
 	for (const FString& Arguments : Commands)
 	{
-		Steps.Add(FString::Printf(TEXT("\"%s\" %s >> \"%s\" 2>&1"), *Npx, *Arguments, *Native(Log)));
+		Steps.Add(StdoutFile.IsEmpty()
+			? FString::Printf(TEXT("\"%s\" %s >> \"%s\" 2>&1"), *Npx, *Arguments, *Native(Log))
+			: FString::Printf(TEXT("\"%s\" %s > \"%s\" 2>> \"%s\""), *Npx, *Arguments, *Native(StdoutFile), *Native(Log)));
 	}
 	FString CommandLine = FString::Printf(TEXT("\"%s\" /d /s /c \"%s\""), *Cmd, *FString::Join(Steps, TEXT(" && ")));
 
@@ -477,7 +506,9 @@ bool FStudioDaemon::SpawnNpx(const TArray<FString>& Commands, FString& OutError)
 	TArray<FString> Steps;
 	for (const FString& Arguments : Commands)
 	{
-		Steps.Add(FString::Printf(TEXT("'%s' %s >> '%s' 2>&1"), *Npx, *Arguments.Replace(TEXT("\""), TEXT("'")), *Log));
+		Steps.Add(StdoutFile.IsEmpty()
+			? FString::Printf(TEXT("'%s' %s >> '%s' 2>&1"), *Npx, *Arguments.Replace(TEXT("\""), TEXT("'")), *Log)
+			: FString::Printf(TEXT("'%s' %s > '%s' 2>> '%s'"), *Npx, *Arguments.Replace(TEXT("\""), TEXT("'")), *StdoutFile, *Log));
 	}
 	const FString Shell = FString::Printf(TEXT("-c \"PATH='%s':$PATH; %s\""), *NodeDir, *FString::Join(Steps, TEXT(" && ")));
 	FProcHandle Handle = FPlatformProcess::CreateProc(TEXT("/bin/sh"), *Shell, true, true, true, nullptr, 0, *FPaths::ProjectDir(), nullptr);
