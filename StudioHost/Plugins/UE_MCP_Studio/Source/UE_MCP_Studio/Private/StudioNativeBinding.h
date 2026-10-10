@@ -38,6 +38,10 @@ public:
 	UFUNCTION()
 	bool OpenProjectFolder();
 
+	/** JSON of the active editor theme's colors as #rrggbb, keyed by FStyleColors name, for the page's editor theme. */
+	UFUNCTION()
+	FString GetEditorTheme();
+
 	/** Open the Node.js download page in the system browser. The only external address the page can open. */
 	UFUNCTION()
 	bool OpenNodeDownload();

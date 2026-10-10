@@ -9,6 +9,7 @@
 #include "Misc/Paths.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
+#include "Styling/StyleColors.h"
 #include "UnrealEdMisc.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogStudioBinding, Log, All);
@@ -107,4 +108,40 @@ bool UStudioNativeBinding::OpenNodeDownload()
 {
 	FPlatformProcess::LaunchURL(TEXT("https://nodejs.org/en/download"), nullptr, nullptr);
 	return true;
+}
+
+FString UStudioNativeBinding::GetEditorTheme()
+{
+	struct FNamed { const TCHAR* Name; EStyleColor Color; };
+	static const FNamed Colors[] = {
+		{ TEXT("background"), EStyleColor::Background },
+		{ TEXT("recessed"), EStyleColor::Recessed },
+		{ TEXT("panel"), EStyleColor::Panel },
+		{ TEXT("header"), EStyleColor::Header },
+		{ TEXT("input"), EStyleColor::Input },
+		{ TEXT("inputOutline"), EStyleColor::InputOutline },
+		{ TEXT("dropdown"), EStyleColor::Dropdown },
+		{ TEXT("dropdownOutline"), EStyleColor::DropdownOutline },
+		{ TEXT("hover"), EStyleColor::Hover },
+		{ TEXT("hover2"), EStyleColor::Hover2 },
+		{ TEXT("foreground"), EStyleColor::Foreground },
+		{ TEXT("foregroundHover"), EStyleColor::ForegroundHover },
+		{ TEXT("foregroundHeader"), EStyleColor::ForegroundHeader },
+		{ TEXT("primary"), EStyleColor::Primary },
+		{ TEXT("primaryHover"), EStyleColor::PrimaryHover },
+		{ TEXT("select"), EStyleColor::Select },
+		{ TEXT("highlight"), EStyleColor::Highlight },
+		{ TEXT("warning"), EStyleColor::Warning },
+		{ TEXT("error"), EStyleColor::Error },
+		{ TEXT("success"), EStyleColor::Success },
+	};
+	TSharedRef<FJsonObject> Out = MakeShared<FJsonObject>();
+	for (const FNamed& C : Colors)
+	{
+		const FColor Srgb = USlateThemeManager::Get().GetColor(C.Color).ToFColorSRGB();
+		Out->SetStringField(C.Name, FString::Printf(TEXT("#%02x%02x%02x"), Srgb.R, Srgb.G, Srgb.B));
+	}
+	FString Text;
+	FJsonSerializer::Serialize(Out, TJsonWriterFactory<>::Create(&Text));
+	return Text;
 }
