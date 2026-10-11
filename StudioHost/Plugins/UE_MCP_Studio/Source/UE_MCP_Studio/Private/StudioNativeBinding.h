@@ -68,4 +68,8 @@ public:
 	 */
 	UFUNCTION()
 	bool DrawAttention(const FString& Message);
+
+	/** Open the ue-mcp documentation in its own editor tab, at a path under /docs (empty for the start page). */
+	UFUNCTION()
+	bool OpenDocs(const FString& Path);
 };

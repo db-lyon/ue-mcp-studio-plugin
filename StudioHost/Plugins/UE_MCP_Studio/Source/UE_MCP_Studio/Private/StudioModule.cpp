@@ -4,6 +4,7 @@
 #include "HAL/IConsoleManager.h"
 #include "Framework/Docking/TabManager.h"
 #include "SStudioPanel.h"
+#include "StudioDocs.h"
 #include "StudioDaemon.h"
 #include "Styling/AppStyle.h"
 #include "ToolMenus.h"
@@ -31,6 +32,8 @@ public:
 			.SetGroup(WorkspaceMenu::GetMenuStructure().GetToolsCategory())
 			.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Toolbar.Settings"));
 
+		FStudioDocs::Register();
+
 		UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FStudioModule::RegisterMenus));
 
 		OpenCommand = IConsoleManager::Get().RegisterConsoleCommand(
@@ -50,6 +53,7 @@ public:
 			IConsoleManager::Get().UnregisterConsoleObject(OpenCommand);
 			OpenCommand = nullptr;
 		}
+		FStudioDocs::Unregister();
 		UToolMenus::UnRegisterStartupCallback(this);
 		UToolMenus::UnregisterOwner(this);
 		if (FSlateApplication::IsInitialized())

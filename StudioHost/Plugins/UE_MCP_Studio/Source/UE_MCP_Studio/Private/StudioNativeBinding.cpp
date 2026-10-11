@@ -3,6 +3,7 @@
 #include "StudioNativeBinding.h"
 
 #include "StudioDaemon.h"
+#include "StudioDocs.h"
 #include "Dom/JsonObject.h"
 #include "Framework/Docking/TabManager.h"
 #include "Framework/Notifications/NotificationManager.h"
@@ -183,6 +184,11 @@ bool UStudioNativeBinding::OpenNodeDownload()
 {
 	FPlatformProcess::LaunchURL(TEXT("https://nodejs.org/en/download"), nullptr, nullptr);
 	return true;
+}
+
+bool UStudioNativeBinding::OpenDocs(const FString& Path)
+{
+	return FStudioDocs::Open(Path);
 }
 
 bool UStudioNativeBinding::DrawAttention(const FString& Message)
