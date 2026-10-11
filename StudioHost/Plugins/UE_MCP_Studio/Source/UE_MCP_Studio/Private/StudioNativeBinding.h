@@ -61,4 +61,11 @@ public:
 	/** Open the Node.js download page in the system browser. The only external address the page can open. */
 	UFUNCTION()
 	bool OpenNodeDownload();
+
+	/**
+	 * A turn finished while the user was elsewhere: show the message as an editor
+	 * toast and, when the editor is not the active window, flash it in the taskbar.
+	 */
+	UFUNCTION()
+	bool DrawAttention(const FString& Message);
 };

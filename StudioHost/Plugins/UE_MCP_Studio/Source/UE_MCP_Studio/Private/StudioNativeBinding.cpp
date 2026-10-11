@@ -4,6 +4,10 @@
 
 #include "StudioDaemon.h"
 #include "Dom/JsonObject.h"
+#include "Framework/Docking/TabManager.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "Widgets/Notifications/SNotificationList.h"
+#include "Widgets/SWindow.h"
 #include "HAL/PlatformProcess.h"
 #include "Interfaces/IProjectManager.h"
 #include "Misc/FileHelper.h"
@@ -178,6 +182,22 @@ bool UStudioNativeBinding::OpenProjectFolder()
 bool UStudioNativeBinding::OpenNodeDownload()
 {
 	FPlatformProcess::LaunchURL(TEXT("https://nodejs.org/en/download"), nullptr, nullptr);
+	return true;
+}
+
+bool UStudioNativeBinding::DrawAttention(const FString& Message)
+{
+	// The page writes the text; keep it to one short line.
+	FNotificationInfo Info(FText::FromString(Message.Left(160)));
+	Info.ExpireDuration = 6.0f;
+	Info.bFireAndForget = true;
+	FSlateNotificationManager::Get().AddNotification(Info);
+
+	const TSharedPtr<SWindow> Root = FGlobalTabmanager::Get()->GetRootWindow();
+	if (Root.IsValid() && !Root->IsActive())
+	{
+		Root->DrawAttention(FWindowDrawAttentionParameters(EWindowDrawAttentionRequestType::UntilActivated));
+	}
 	return true;
 }
 
