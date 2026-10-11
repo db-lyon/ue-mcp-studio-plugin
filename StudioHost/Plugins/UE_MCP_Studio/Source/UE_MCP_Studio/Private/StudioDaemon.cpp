@@ -256,7 +256,7 @@ FString FStudioDaemon::ExtensionManifestUrl()
 {
 	const FString Override = FPlatformMisc::GetEnvironmentVariable(TEXT("UE_MCP_STUDIO_CHANNEL"));
 	return Override.IsEmpty()
-		? FString(TEXT("https://github.com/db-lyon/ue-mcp-studio-releases/releases/latest/download/latest.json"))
+		? FString(TEXT("https://github.com/db-lyon/ue-mcp-studio/releases/latest/download/latest.json"))
 		: Override;
 }
 
