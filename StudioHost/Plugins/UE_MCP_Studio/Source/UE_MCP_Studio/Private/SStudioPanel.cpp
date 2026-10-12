@@ -2,6 +2,7 @@
 
 #include "SStudioPanel.h"
 
+#include "SStudioKeyGuard.h"
 #include "StudioDaemon.h"
 #include "StudioNativeBinding.h"
 #include "Containers/Ticker.h"
@@ -49,11 +50,14 @@ void SStudioPanel::Construct(const FArguments& InArgs)
 
 	ChildSlot
 	[
-		SAssignNew(Browser, SWebBrowser, Window)
-		.ShowControls(false)
-		.ShowAddressBar(false)
-		.OnBeforeNavigation(this, &SStudioPanel::OnBeforeNavigation)
-		.OnBeforePopup(this, &SStudioPanel::OnBeforePopup)
+		SNew(SStudioKeyGuard)
+		[
+			SAssignNew(Browser, SWebBrowser, Window)
+			.ShowControls(false)
+			.ShowAddressBar(false)
+			.OnBeforeNavigation(this, &SStudioPanel::OnBeforeNavigation)
+			.OnBeforePopup(this, &SStudioPanel::OnBeforePopup)
+		]
 	];
 	Browser->BindUObject(TEXT("studio"), Binding.Get(), true);
 

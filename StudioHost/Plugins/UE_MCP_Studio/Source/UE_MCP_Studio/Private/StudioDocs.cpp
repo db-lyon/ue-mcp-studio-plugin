@@ -5,6 +5,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Docking/TabManager.h"
 #include "HAL/PlatformProcess.h"
+#include "SStudioKeyGuard.h"
 #include "SWebBrowser.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Docking/SDockTab.h"
@@ -71,7 +72,7 @@ namespace
 			.OnBeforeNavigation_Static(&OnBeforeNavigation)
 			.OnBeforePopup_Static(&OnBeforePopup);
 		OpenBrowser = Browser;
-		return SNew(SDockTab).TabRole(ETabRole::NomadTab)[Browser];
+		return SNew(SDockTab).TabRole(ETabRole::NomadTab)[SNew(SStudioKeyGuard)[Browser]];
 	}
 }
 
