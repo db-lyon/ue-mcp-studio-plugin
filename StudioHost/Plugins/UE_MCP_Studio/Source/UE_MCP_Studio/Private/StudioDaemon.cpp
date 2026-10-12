@@ -294,7 +294,7 @@ void FStudioDaemon::EnsureRunning()
 		UE_LOG(LogStudio, Warning, TEXT("daemon did not start: %s"), *Error);
 	}
 
-	// A newer release replaces the extension; the install restarts the daemon to load it.
+	// A newer release replaces the extension. With the daemon up, Studio's updater installs it, after the turn in progress.
 	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
 	Request->SetURL(ExtensionManifestUrl());
 	Request->SetVerb(TEXT("GET"));
@@ -319,6 +319,39 @@ void FStudioDaemon::EnsureRunning()
 			return;
 		}
 		UE_LOG(LogStudio, Log, TEXT("updating Studio %s -> %s"), *Installed, *Latest);
+		FStudioDaemonInfo Live;
+		if (ReadLive(Live))
+		{
+			RequestStudioUpdate(Live);
+			return;
+		}
+		FString UpdateError;
+		if (!InstallExtensionAndStart(UpdateError))
+		{
+			UE_LOG(LogStudio, Warning, TEXT("could not update Studio: %s"), *UpdateError);
+		}
+	});
+	Request->ProcessRequest();
+}
+
+void FStudioDaemon::RequestStudioUpdate(const FStudioDaemonInfo& Info)
+{
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
+	Request->SetURL(FString::Printf(TEXT("http://127.0.0.1:%d/v1/ext/studio/updates/studio"), Info.Port));
+	Request->SetVerb(TEXT("POST"));
+	Request->SetHeader(TEXT("Authorization"), TEXT("Bearer ") + Info.Token);
+	Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+	Request->SetContentAsString(TEXT("{}"));
+	Request->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr, FHttpResponsePtr Response, bool bOk)
+	{
+		const int32 Code = bOk && Response.IsValid() ? Response->GetResponseCode() : 0;
+		if (Code == 200 || Code == 202)
+		{
+			UE_LOG(LogStudio, Log, TEXT("Studio's updater took the update: %s"), *Response->GetContentAsString());
+			return;
+		}
+		// No updater to ask (an extension without the route, or a daemon that went away): install it directly.
+		UE_LOG(LogStudio, Log, TEXT("Studio's updater answered %d; installing the update directly"), Code);
 		FString UpdateError;
 		if (!InstallExtensionAndStart(UpdateError))
 		{

@@ -98,6 +98,13 @@ public:
 	static bool InstallExtensionAndStart(FString& OutError);
 
 	/**
+	 * Hand a newer Studio to the running daemon's updater, which installs it now
+	 * or, while a turn is in progress, once the turn finishes. Installs directly
+	 * when the daemon has no updater to ask.
+	 */
+	static void RequestStudioUpdate(const FStudioDaemonInfo& Info);
+
+	/**
 	 * Bring Studio up: the extension installed and current, the daemon running.
 	 * Checks the release channel for a newer extension in the background.
 	 */
