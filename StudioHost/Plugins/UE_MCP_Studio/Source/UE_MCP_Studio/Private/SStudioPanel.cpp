@@ -36,8 +36,6 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogStudioPanel, Log, All);
 
-bool SStudioPanel::bAutoOpened = false;
-
 namespace
 {
 	constexpr double HealthEverySeconds = 2.0;
@@ -222,11 +220,6 @@ bool SStudioPanel::Poll(float)
 			LivePort = Info.Port;
 			LastHealth = LastUpdates = 0.0;
 			Switcher->SetActiveWidgetIndex(1);
-			if (!bAutoOpened)
-			{
-				bAutoOpened = true;
-				FStudioDock::OpenStudio();
-			}
 		}
 		DaemonText = FText::Format(LOCTEXT("DaemonLive", "Daemon: ue-mcp {0} on port {1}"), FText::FromString(Info.Version), FText::AsNumber(Info.Port, &FNumberFormattingOptions::DefaultNoGrouping()));
 		const double Now = FPlatformTime::Seconds();
