@@ -1,6 +1,6 @@
 # UE-MCP Studio editor plugin
 
-The Unreal Editor plugin for [UE-MCP Studio](https://github.com/db-lyon/ue-mcp-studio): the toolbar button and Tools menu entry that open Studio in its own window, a status tab with the setup page, the native calls the setup page uses, and the launch of the project's [ue-mcp](https://github.com/db-lyon/ue-mcp) daemon. On first start it installs ue-mcp and the Studio extension for the project. Free and open source under the MIT license.
+The Unreal Editor plugin for [UE-MCP Studio](https://github.com/db-lyon/ue-mcp-studio): the toolbar button and Tools menu entry that open Studio, the UE-MCP Studio tab that holds docked Studio and the setup page, the native calls the setup page uses, and the launch of the project's [ue-mcp](https://github.com/db-lyon/ue-mcp) daemon. On first start it installs ue-mcp and the Studio extension for the project. Free and open source under the MIT license.
 
 ## Install
 
@@ -10,7 +10,7 @@ Unreal Engine 5.7 and 5.8 on Windows, with [Node.js](https://nodejs.org) install
 2. Unzip it into your project's `Plugins/` folder, so that `Plugins/UE_MCP_Studio/UE_MCP_Studio.uplugin` exists.
 3. Open the project and open Studio from the toolbar button or **Tools > UE-MCP Studio**.
 
-Studio runs in its own window, a separate process, so it keeps working while the editor is busy. **Dock in editor** (in Studio's header or the status tab) shows it in the editor's **UE-MCP Studio** tab instead, beside Details by default: the window stays its own process and is held over the tab, following it as it moves, resizes, floats or goes behind another tab. **Open as window** brings it back out. The choice is kept per project, and when the tab is part of your saved layout Studio appears in it on editor start. Docking needs Studio 0.1.0-beta.31 or later.
+Studio runs in its own window, a separate process, so it keeps working while the editor is busy. **Dock in editor** (in Studio's header, or the UE-MCP Studio tab before Studio runs) shows it in the editor's **UE-MCP Studio** tab instead, beside Details by default: the window stays its own process and is held over the tab, following it as it moves, resizes, floats or goes behind another tab. **Open as window** brings it back out. The choice is kept per project, and when the tab is part of your saved layout Studio appears in it on editor start. Docking needs Studio 0.1.0-beta.31 or later.
 
 Until Studio can run, the UE-MCP Studio tab shows the setup page, then the state of the editor, the daemon and updates.
 
