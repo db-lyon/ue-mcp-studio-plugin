@@ -216,12 +216,34 @@ namespace StudioDockImpl
 		return false;
 	}
 
+	/** Whether the window is above the host in the desktop's z-order; windows under the host cannot cover the tab. */
+	bool AboveHost(const TSharedRef<SWindow>& W, const TSharedPtr<SWindow>& Host)
+	{
+#if PLATFORM_WINDOWS
+		if (!W->GetNativeWindow().IsValid() || !Host->GetNativeWindow().IsValid())
+		{
+			return false;
+		}
+		const HWND Target = static_cast<HWND>(W->GetNativeWindow()->GetOSWindowHandle());
+		for (HWND Above = ::GetWindow(static_cast<HWND>(Host->GetNativeWindow()->GetOSWindowHandle()), GW_HWNDPREV); Above; Above = ::GetWindow(Above, GW_HWNDPREV))
+		{
+			if (Above == Target)
+			{
+				return true;
+			}
+		}
+		return false;
+#else
+		return true;
+#endif
+	}
+
 	/** Any other editor window on screen over the rect: a menu, popup, tooltip, modal or drag decorator. */
 	bool AnyWindowOver(const TArray<TSharedRef<SWindow>>& Windows, const TSharedPtr<SWindow>& Host, const FSlateRect& Rect)
 	{
 		for (const TSharedRef<SWindow>& W : Windows)
 		{
-			if (!IsAncestorOf(&W.Get(), Host) && W->IsVisible() && !W->IsWindowMinimized() && W->GetOpacity() > 0.f)
+			if (!IsAncestorOf(&W.Get(), Host) && W->IsVisible() && !W->IsWindowMinimized() && W->GetOpacity() > 0.f && AboveHost(W, Host))
 			{
 				const FSlateRect R = W->GetRectInScreen();
 				if (R.GetSize().X > 0.f && R.GetSize().Y > 0.f && FSlateRect::DoRectanglesIntersect(R, Rect))
