@@ -329,23 +329,31 @@ namespace StudioDockImpl
 		}
 	}
 
+	/** Slate drew at least one window since the last tick; it sleeps while the editor is idle. */
+	bool bDrewThisTick = false;
+
 	void OnPostTick(float)
 	{
+		// Whether the area was in this tick's draw says whether the tab is on screen. A tick
+		// with no draw changes nothing, so an idle editor keeps its last answer.
+		if (bDrewThisTick)
+		{
+			bPaintedLastRender = PaintCount != PaintCountAtRender;
+			PaintCountAtRender = PaintCount;
+			bDrewThisTick = false;
+		}
 		Publish();
 		HandleStudioRequests();
 	}
 
-	/** Right after Slate draws a window: whether the area was in that draw decides that the tab is on screen. */
+	/** Right after Slate draws a window; during a live resize this is outside the tick, so the host's draw reports at once. */
 	void OnWindowRendered(SWindow& Window)
 	{
-		const TSharedPtr<SWindow> Host = HostWindow.Pin();
-		if (Host.Get() != &Window)
+		bDrewThisTick = true;
+		if (HostWindow.Pin().Get() == &Window)
 		{
-			return;
+			Publish();
 		}
-		bPaintedLastRender = PaintCount != PaintCountAtRender;
-		PaintCountAtRender = PaintCount;
-		Publish();
 	}
 
 	void OnTabClosed(TSharedRef<SDockTab>)
