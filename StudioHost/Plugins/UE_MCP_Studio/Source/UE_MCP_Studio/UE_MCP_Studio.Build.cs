@@ -16,6 +16,7 @@ public class UE_MCP_Studio : ModuleRules
 			"Slate",
 			"SlateCore",
 			"UnrealEd",
+			"LevelEditor",
 			"ToolMenus",
 			"WorkspaceMenuStructure",
 			"WebBrowser",

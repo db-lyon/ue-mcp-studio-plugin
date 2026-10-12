@@ -31,10 +31,11 @@ namespace
 
 	FTSTicker::FDelegateHandle PendingTicker;
 	double PendingSince = 0.0;
+	FString PendingMode;
 	FString PublishedTheme;
 
 	/** Ask the daemon to open the window; the system browser when it cannot. */
-	void RequestWindow(const FStudioDaemonInfo& Info)
+	void RequestWindow(const FStudioDaemonInfo& Info, const FString& Mode)
 	{
 #if PLATFORM_WINDOWS
 		// The editor is in front; let the window it is about to start come forward too.
@@ -45,7 +46,9 @@ namespace
 		Request->SetVerb(TEXT("POST"));
 		Request->SetHeader(TEXT("Authorization"), TEXT("Bearer ") + Info.Token);
 		Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
-		Request->SetContentAsString(FString::Printf(TEXT("{\"editorPid\":%u,\"fromEditor\":true}"), FPlatformProcess::GetCurrentProcessId()));
+		// Older Studio extensions ignore the mode and open their window.
+		const FString ModeField = Mode.IsEmpty() ? FString() : FString::Printf(TEXT(",\"mode\":\"%s\""), *Mode);
+		Request->SetContentAsString(FString::Printf(TEXT("{\"editorPid\":%u,\"fromEditor\":true%s}"), FPlatformProcess::GetCurrentProcessId(), *ModeField));
 		const FString Fallback = FStudioDaemon::UiUrl(Info);
 		Request->OnProcessRequestComplete().BindLambda([Fallback](FHttpRequestPtr, FHttpResponsePtr Response, bool bOk)
 		{
@@ -68,7 +71,7 @@ namespace
 		if (FStudioDaemon::ReadLive(Info))
 		{
 			PendingTicker.Reset();
-			RequestWindow(Info);
+			RequestWindow(Info, PendingMode);
 			return false;
 		}
 		if (FPlatformTime::Seconds() - PendingSince > StartTimeoutSeconds)
@@ -81,18 +84,20 @@ namespace
 	}
 }
 
-bool FStudioWindow::Open()
+bool FStudioWindow::Open(const TCHAR* Mode)
 {
 	FStudioDaemonInfo Info;
 	if (FStudioDaemon::ReadLive(Info))
 	{
-		RequestWindow(Info);
+		RequestWindow(Info, Mode ? FString(Mode) : FString());
 		return true;
 	}
 	if (!FStudioDaemon::IsBridgeInstalled() || FStudioDaemon::FindNode().IsEmpty())
 	{
 		return false;
 	}
+	// The latest ask wins when the daemon comes up.
+	PendingMode = Mode ? FString(Mode) : FString();
 	if (PendingTicker.IsValid())
 	{
 		return true;

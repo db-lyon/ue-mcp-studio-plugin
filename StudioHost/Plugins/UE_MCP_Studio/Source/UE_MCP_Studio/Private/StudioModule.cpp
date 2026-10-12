@@ -6,6 +6,7 @@
 #include "SStudioPanel.h"
 #include "StudioDocs.h"
 #include "StudioDaemon.h"
+#include "StudioDock.h"
 #include "StudioWindow.h"
 #include "Styling/AppStyle.h"
 #include "ToolMenus.h"
@@ -34,12 +35,14 @@ public:
 			.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Toolbar.Settings"));
 
 		FStudioDocs::Register();
+		// The "UE-MCP Studio" dock tab Studio's window can sit over.
+		FStudioDock::Startup();
 
 		UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FStudioModule::RegisterMenus));
 
 		OpenCommand = IConsoleManager::Get().RegisterConsoleCommand(
 			TEXT("Studio.Open"),
-			TEXT("Open UE-MCP Studio's window."),
+			TEXT("Open UE-MCP Studio, in its editor tab or its own window."),
 			FConsoleCommandDelegate::CreateStatic(&FStudioModule::OpenStudio),
 			ECVF_Default);
 
@@ -57,6 +60,7 @@ public:
 			OpenCommand = nullptr;
 		}
 		FStudioDocs::Unregister();
+		FStudioDock::Shutdown();
 		FStudioWindow::Shutdown();
 		UToolMenus::UnRegisterStartupCallback(this);
 		UToolMenus::UnregisterOwner(this);
@@ -74,10 +78,10 @@ private:
 		return SNew(SDockTab).TabRole(ETabRole::NomadTab)[SNew(SStudioPanel)];
 	}
 
-	/** Studio's window; the status tab when Studio cannot run yet, whose setup page says why. */
+	/** Studio, docked or in its own window as the project keeps it; the status tab when Studio cannot run yet, whose setup page says why. */
 	static void OpenStudio()
 	{
-		if (!FStudioWindow::Open())
+		if (!FStudioDock::OpenStudio())
 		{
 			FGlobalTabmanager::Get()->TryInvokeTab(StudioTab);
 		}
@@ -100,7 +104,7 @@ private:
 		ToolsSection.AddMenuEntry(
 			"OpenUEMCPStudioWindow",
 			LOCTEXT("MenuLabel", "UE-MCP Studio"),
-			LOCTEXT("MenuTooltip", "Open UE-MCP Studio in its own window"),
+			LOCTEXT("MenuTooltip", "Open UE-MCP Studio, in its editor tab or its own window"),
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Toolbar.Settings"),
 			FUIAction(FExecuteAction::CreateStatic(&FStudioModule::OpenStudio)));
 	}
