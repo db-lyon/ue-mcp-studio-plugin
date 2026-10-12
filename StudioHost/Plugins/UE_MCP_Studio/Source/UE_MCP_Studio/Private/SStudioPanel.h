@@ -3,18 +3,24 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Containers/Ticker.h"
 #include "Widgets/SCompoundWidget.h"
 #include "UObject/StrongObjectPtr.h"
+#include "StudioDaemon.h"
 #include "StudioNativeBinding.h"
 
 class SWebBrowser;
+class SWidgetSwitcher;
 
 struct FWebNavigationRequest;
 
 /**
- * The dock tab's content: one browser view. It shows the bundled bootstrap page
- * until the project's daemon is up, then the UI the daemon serves, and follows
- * the daemon if it comes back on another port.
+ * The Studio status tab. Studio itself runs in its own window, apart from the
+ * game thread; this tab launches it and shows the state of the editor, the
+ * daemon and updates. Until the daemon is up it shows the bundled setup page
+ * instead (Node.js, the bridge, the project's setup, starting the daemon).
+ * The first time the daemon is up in an editor session that shows this tab,
+ * the window opens by itself.
  */
 class SStudioPanel : public SCompoundWidget
 {
@@ -27,18 +33,33 @@ public:
 
 private:
 	bool Poll(float DeltaTime);
-	/** True cancels: only the bundled pages and the daemon's own origin may load. */
+	/** True cancels: only the bundled pages may load in the setup view. */
 	bool OnBeforeNavigation(const FString& Url, const FWebNavigationRequest& Request);
 	bool OnBeforePopup(FString Url, FString Frame);
 
 	FString BootstrapUrl() const;
 	bool IsAllowed(const FString& Url) const;
 
+	/** The daemon's view of the editor, and the update state, read over its HTTP API. */
+	void RequestHealth(const FStudioDaemonInfo& Info);
+	void RequestUpdates(const FStudioDaemonInfo& Info);
+
+	TSharedRef<SWidget> MakeLauncher();
+
+	TSharedPtr<SWidgetSwitcher> Switcher;
 	TSharedPtr<SWebBrowser> Browser;
 	TStrongObjectPtr<UStudioNativeBinding> Binding;
 	FTSTicker::FDelegateHandle Ticker;
-	/** Port of the daemon the UI was loaded from, 0 while on the bootstrap page. */
-	int32 LoadedPort = 0;
 	bool bTriedLoadBridge = false;
-	FString LoadedToken;
+	/** Port of the daemon the launcher shows, 0 while on the setup page. */
+	int32 LivePort = 0;
+	double LastHealth = 0.0;
+	double LastUpdates = 0.0;
+
+	FText DaemonText;
+	FText EditorText;
+	FText UpdateText;
+
+	/** The window opens by itself once per editor session. */
+	static bool bAutoOpened;
 };
