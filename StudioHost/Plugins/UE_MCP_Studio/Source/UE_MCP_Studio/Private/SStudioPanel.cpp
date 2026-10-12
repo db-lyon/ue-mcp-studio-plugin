@@ -4,6 +4,7 @@
 
 #include "SStudioKeyGuard.h"
 #include "StudioDaemon.h"
+#include "StudioDock.h"
 #include "StudioNativeBinding.h"
 #include "StudioWindow.h"
 #include "Containers/Ticker.h"
@@ -130,21 +131,41 @@ TSharedRef<SWidget> SStudioPanel::MakeLauncher()
 			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 14.f)
 			[
 				SNew(STextBlock).AutoWrapText(true)
-				.Text(LOCTEXT("LauncherAbout", "Studio runs in its own window, so the chat keeps working while the editor is busy."))
+				.Text(LOCTEXT("LauncherAbout", "Studio runs in a process of its own, docked in an editor tab or in its own window, so the chat keeps working while the editor is busy."))
 			]
 			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Left).Padding(0.f, 0.f, 0.f, 16.f)
 			[
-				SNew(SButton)
-				.ButtonStyle(FAppStyle::Get(), "PrimaryButton")
-				.ContentPadding(FMargin(14.f, 5.f))
-				.OnClicked_Lambda([]() { FStudioWindow::Open(); return FReply::Handled(); })
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth().Padding(0.f, 0.f, 8.f, 0.f)
 				[
-					SNew(STextBlock).Text_Lambda([]() { return FStudioWindow::IsOpen() ? LOCTEXT("ShowStudio", "Show Studio") : LOCTEXT("OpenStudio", "Open Studio"); })
+					SNew(SButton)
+					.ButtonStyle(FAppStyle::Get(), "PrimaryButton")
+					.ContentPadding(FMargin(14.f, 5.f))
+					.OnClicked_Lambda([]() { FStudioDock::OpenStudio(); return FReply::Handled(); })
+					[
+						SNew(STextBlock).Text_Lambda([]() { return FStudioWindow::IsOpen() ? LOCTEXT("ShowStudio", "Show Studio") : LOCTEXT("OpenStudio", "Open Studio"); })
+					]
+				]
+				+ SHorizontalBox::Slot().AutoWidth()
+				[
+					SNew(SButton)
+					.ContentPadding(FMargin(14.f, 5.f))
+					.OnClicked_Lambda([]() { FStudioDock::SetDocked(!FStudioDock::IsDockedMode()); return FReply::Handled(); })
+					[
+						SNew(STextBlock).Text_Lambda([]() { return FStudioDock::IsDockedMode() ? LOCTEXT("OpenAsWindow", "Open as window") : LOCTEXT("DockInEditor", "Dock in editor"); })
+					]
 				]
 			]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 2.f)
 			[
-				Line(TAttribute<FText>::CreateLambda([]() { return FStudioWindow::IsOpen() ? LOCTEXT("WindowOpen", "Window: open") : LOCTEXT("WindowClosed", "Window: not open"); }))
+				Line(TAttribute<FText>::CreateLambda([]()
+				{
+					if (!FStudioWindow::IsOpen())
+					{
+						return LOCTEXT("WindowClosed", "Window: not open");
+					}
+					return FStudioDock::IsDockedMode() ? LOCTEXT("WindowDocked", "Window: open, docked in the UE-MCP Studio tab") : LOCTEXT("WindowOpen", "Window: open");
+				}))
 			]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 2.f)
 			[
@@ -204,7 +225,7 @@ bool SStudioPanel::Poll(float)
 			if (!bAutoOpened)
 			{
 				bAutoOpened = true;
-				FStudioWindow::Open();
+				FStudioDock::OpenStudio();
 			}
 		}
 		DaemonText = FText::Format(LOCTEXT("DaemonLive", "Daemon: ue-mcp {0} on port {1}"), FText::FromString(Info.Version), FText::AsNumber(Info.Port, &FNumberFormattingOptions::DefaultNoGrouping()));
