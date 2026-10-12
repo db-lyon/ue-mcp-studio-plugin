@@ -6,6 +6,7 @@
 #include "SStudioPanel.h"
 #include "StudioDocs.h"
 #include "StudioDaemon.h"
+#include "StudioWindow.h"
 #include "Styling/AppStyle.h"
 #include "ToolMenus.h"
 #include "Widgets/Docking/SDockTab.h"
@@ -27,8 +28,8 @@ public:
 	virtual void StartupModule() override
 	{
 		FGlobalTabmanager::Get()->RegisterNomadTabSpawner(StudioTab, FOnSpawnTab::CreateRaw(this, &FStudioModule::SpawnTab))
-			.SetDisplayName(LOCTEXT("TabTitle", "UE-MCP Studio"))
-			.SetTooltipText(LOCTEXT("TabTooltip", "Agents, flows, setup and logs for ue-mcp"))
+			.SetDisplayName(LOCTEXT("TabTitle", "UE-MCP Studio Status"))
+			.SetTooltipText(LOCTEXT("TabTooltip", "Open Studio, its setup, and the state of the editor, the daemon and updates"))
 			.SetGroup(WorkspaceMenu::GetMenuStructure().GetToolsCategory())
 			.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Toolbar.Settings"));
 
@@ -38,12 +39,14 @@ public:
 
 		OpenCommand = IConsoleManager::Get().RegisterConsoleCommand(
 			TEXT("Studio.Open"),
-			TEXT("Open the UE-MCP Studio tab."),
-			FConsoleCommandDelegate::CreateLambda([] { FGlobalTabmanager::Get()->TryInvokeTab(StudioTab); }),
+			TEXT("Open UE-MCP Studio's window."),
+			FConsoleCommandDelegate::CreateStatic(&FStudioModule::OpenStudio),
 			ECVF_Default);
 
-		// The daemon is the product; the tab is only a view. Start it with the editor, not the tab.
+		// The daemon is the product; the window and the tab are only views. Start it with the editor.
 		FStudioDaemon::EnsureRunning();
+		// The window reads the editor's theme from disk, so it never has to ask the editor.
+		FStudioWindow::PublishEditorTheme();
 	}
 
 	virtual void ShutdownModule() override
@@ -54,6 +57,7 @@ public:
 			OpenCommand = nullptr;
 		}
 		FStudioDocs::Unregister();
+		FStudioWindow::Shutdown();
 		UToolMenus::UnRegisterStartupCallback(this);
 		UToolMenus::UnregisterOwner(this);
 		if (FSlateApplication::IsInitialized())
@@ -70,6 +74,15 @@ private:
 		return SNew(SDockTab).TabRole(ETabRole::NomadTab)[SNew(SStudioPanel)];
 	}
 
+	/** Studio's window; the status tab when Studio cannot run yet, whose setup page says why. */
+	static void OpenStudio()
+	{
+		if (!FStudioWindow::Open())
+		{
+			FGlobalTabmanager::Get()->TryInvokeTab(StudioTab);
+		}
+	}
+
 	void RegisterMenus()
 	{
 		FToolMenuOwnerScoped Owner(this);
@@ -77,10 +90,19 @@ private:
 		FToolMenuSection& Section = Toolbar->FindOrAddSection("UEMCPStudio");
 		Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 			"OpenUEMCPStudio",
-			FUIAction(FExecuteAction::CreateLambda([] { FGlobalTabmanager::Get()->TryInvokeTab(StudioTab); })),
+			FUIAction(FExecuteAction::CreateStatic(&FStudioModule::OpenStudio)),
 			LOCTEXT("ToolbarLabel", "Studio"),
 			LOCTEXT("ToolbarTooltip", "Open UE-MCP Studio"),
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Toolbar.Settings")));
+
+		UToolMenu* Tools = UToolMenus::Get()->ExtendMenu("LevelEditor.MainMenu.Tools");
+		FToolMenuSection& ToolsSection = Tools->FindOrAddSection("UEMCPStudio", LOCTEXT("ToolsSection", "UE-MCP"));
+		ToolsSection.AddMenuEntry(
+			"OpenUEMCPStudioWindow",
+			LOCTEXT("MenuLabel", "UE-MCP Studio"),
+			LOCTEXT("MenuTooltip", "Open UE-MCP Studio in its own window"),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Toolbar.Settings"),
+			FUIAction(FExecuteAction::CreateStatic(&FStudioModule::OpenStudio)));
 	}
 };
 

@@ -107,11 +107,15 @@ FString FStudioDaemon::DiscoveryPath()
 	{
 		Dir = FPaths::Combine(UserHome(), TEXT(".ue-mcp"), TEXT("daemons"));
 	}
+	return FPaths::Combine(Dir, ProjectKey() + TEXT(".json"));
+}
+
+FString FStudioDaemon::ProjectKey()
+{
 	const FTCHARToUTF8 Utf8(*NormalizedProjectRoot());
 	FSHAHash Hash;
 	FSHA1::HashBuffer(Utf8.Get(), Utf8.Length(), Hash.Hash);
-	const FString Key = BytesToHex(Hash.Hash, sizeof(Hash.Hash)).ToLower().Left(16);
-	return FPaths::Combine(Dir, Key + TEXT(".json"));
+	return BytesToHex(Hash.Hash, sizeof(Hash.Hash)).ToLower().Left(16);
 }
 
 bool FStudioDaemon::ReadLive(FStudioDaemonInfo& Out)

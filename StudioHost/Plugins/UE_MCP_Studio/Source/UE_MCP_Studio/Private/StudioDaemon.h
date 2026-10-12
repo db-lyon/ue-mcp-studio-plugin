@@ -37,6 +37,9 @@ public:
 	/** This project's root in ue-mcp's normalized form. */
 	static FString NormalizedProjectRoot();
 
+	/** The daemon's key for this project: the first 16 hex digits of the SHA-1 of NormalizedProjectRoot. */
+	static FString ProjectKey();
+
 	static FString DiscoveryPath();
 
 	/** The daemon for this project, when its discovery file names a live process. */
