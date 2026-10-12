@@ -17,6 +17,7 @@
 #include "Modules/ModuleManager.h"
 #include "Rendering/SlateRenderer.h"
 #include "Styling/AppStyle.h"
+#include "Styling/CoreStyle.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
@@ -110,6 +111,8 @@ namespace StudioDockImpl
 	TWeakPtr<SDockTab> Tab;
 	TWeakPtr<SStudioDockArea> Area;
 	TWeakPtr<SWindow> HostWindow;
+	/** The top-level window the area was last painted into. */
+	TWeakPtr<SWindow> PaintedWindow;
 	/** The area's last painted rect, in Slate's desktop space: physical pixels. */
 	FSlateRect PaintedRect;
 	uint64 PaintCount = 0;
@@ -246,7 +249,7 @@ namespace StudioDockImpl
 		if (T.IsValid() && Area.IsValid())
 		{
 			R.Flags |= FlagOpen;
-			const TSharedPtr<SWindow> Window = T->GetParentWindow();
+			const TSharedPtr<SWindow> Window = PaintedWindow.Pin();
 			HostWindow = Window;
 			if (Window.IsValid() && Window->GetNativeWindow().IsValid())
 			{
@@ -327,6 +330,7 @@ namespace StudioDockImpl
 	{
 		Tab.Reset();
 		Area.Reset();
+		PaintedWindow.Reset();
 		bPaintedLastRender = false;
 		Publish();
 	}
@@ -407,7 +411,7 @@ void SStudioDockArea::Construct(const FArguments& InArgs)
 	ChildSlot
 	[
 		SNew(SBorder)
-		.BorderImage(FAppStyle::GetBrush("WhiteBrush"))
+		.BorderImage(FCoreStyle::Get().GetBrush("GenericWhiteBox"))
 		// Studio's background, so a frame where the window is not over the tab yet looks the same.
 		.BorderBackgroundColor(FLinearColor(FColor(0x0c, 0x0c, 0x0b)))
 		.Padding(FMargin(20.f, 18.f))
@@ -435,8 +439,14 @@ void SStudioDockArea::Construct(const FArguments& InArgs)
 
 int32 SStudioDockArea::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
-	DockImpl::PaintedRect = FSlateRect::FromPointAndExtent(FVector2D(AllottedGeometry.GetAbsolutePosition()), FVector2D(AllottedGeometry.GetAbsoluteSize()));
+	// Paint geometry is window-local; the tick-space geometry Slate set for this paint is on the desktop, in physical pixels.
+	const FGeometry& Desktop = GetTickSpaceGeometry();
+	DockImpl::PaintedRect = FSlateRect::FromPointAndExtent(FVector2D(Desktop.GetAbsolutePosition()), FVector2D(Desktop.GetAbsoluteSize()));
 	++DockImpl::PaintCount;
+	if (SWindow* Window = OutDrawElements.GetPaintWindow())
+	{
+		DockImpl::PaintedWindow = StaticCastSharedRef<SWindow>(Window->AsShared());
+	}
 	return SCompoundWidget::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
 }
 
