@@ -15,12 +15,10 @@ class SWidgetSwitcher;
 struct FWebNavigationRequest;
 
 /**
- * The Studio status tab. Studio itself runs in its own window, apart from the
- * game thread; this tab launches it and shows the state of the editor, the
- * daemon and updates. Until the daemon is up it shows the bundled setup page
- * instead (Node.js, the bridge, the project's setup, starting the daemon).
- * The first time the daemon is up in an editor session that shows this tab,
- * the window opens by itself.
+ * Setup and status, shown in the UE-MCP Studio tab while Studio cannot run:
+ * the bundled setup page until the daemon is up (Node.js, the bridge, the
+ * project's setup, starting the daemon), then the launcher with the state of
+ * the editor, the daemon and updates.
  */
 class SStudioPanel : public SCompoundWidget
 {
@@ -59,7 +57,4 @@ private:
 	FText DaemonText;
 	FText EditorText;
 	FText UpdateText;
-
-	/** The window opens by itself once per editor session. */
-	static bool bAutoOpened;
 };

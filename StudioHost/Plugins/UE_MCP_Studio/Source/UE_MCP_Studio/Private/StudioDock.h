@@ -27,10 +27,13 @@ class FStudioDock
 public:
 	static const FName TabId;
 
+	/** The status tab of plugins before 0.1.0-beta.31; saved layouts still name it. */
+	static const FName LegacyStatusTabId;
+
 	static void Startup();
 	static void Shutdown();
 
-	/** Open Studio the way the project keeps it: in the dock tab, or in its own window. False when Studio cannot run yet. */
+	/** Open Studio the way the project keeps it: in the dock tab, or in its own window; the dock tab's setup page when Studio cannot run yet. */
 	static bool OpenStudio();
 
 	/** Switch to docked or to a window of its own, keep the choice, and show Studio that way. */

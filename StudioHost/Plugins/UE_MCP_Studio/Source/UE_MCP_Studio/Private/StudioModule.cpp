@@ -3,7 +3,6 @@
 #include "Modules/ModuleManager.h"
 #include "HAL/IConsoleManager.h"
 #include "Framework/Docking/TabManager.h"
-#include "SStudioPanel.h"
 #include "StudioDocs.h"
 #include "StudioDaemon.h"
 #include "StudioDock.h"
@@ -18,24 +17,13 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogStudioModule, Log, All);
 
-namespace
-{
-	const FName StudioTab(TEXT("UEMCPStudio"));
-}
-
 class FStudioModule : public IModuleInterface
 {
 public:
 	virtual void StartupModule() override
 	{
-		FGlobalTabmanager::Get()->RegisterNomadTabSpawner(StudioTab, FOnSpawnTab::CreateRaw(this, &FStudioModule::SpawnTab))
-			.SetDisplayName(LOCTEXT("TabTitle", "UE-MCP Studio Status"))
-			.SetTooltipText(LOCTEXT("TabTooltip", "Open Studio, its setup, and the state of the editor, the daemon and updates"))
-			.SetGroup(WorkspaceMenu::GetMenuStructure().GetToolsCategory())
-			.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Toolbar.Settings"));
-
 		FStudioDocs::Register();
-		// The "UE-MCP Studio" dock tab Studio's window can sit over.
+		// The "UE-MCP Studio" tab: Studio's window sits over it, and it shows the setup page until Studio can run.
 		FStudioDock::Startup();
 
 		UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FStudioModule::RegisterMenus));
@@ -64,27 +52,15 @@ public:
 		FStudioWindow::Shutdown();
 		UToolMenus::UnRegisterStartupCallback(this);
 		UToolMenus::UnregisterOwner(this);
-		if (FSlateApplication::IsInitialized())
-		{
-			FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(StudioTab);
-		}
 	}
 
 private:
 	IConsoleObject* OpenCommand = nullptr;
 
-	TSharedRef<SDockTab> SpawnTab(const FSpawnTabArgs&)
-	{
-		return SNew(SDockTab).TabRole(ETabRole::NomadTab)[SNew(SStudioPanel)];
-	}
-
-	/** Studio, docked or in its own window as the project keeps it; the status tab when Studio cannot run yet, whose setup page says why. */
+	/** Studio, docked or in its own window as the project keeps it; the UE-MCP Studio tab's setup page when Studio cannot run yet. */
 	static void OpenStudio()
 	{
-		if (!FStudioDock::OpenStudio())
-		{
-			FGlobalTabmanager::Get()->TryInvokeTab(StudioTab);
-		}
+		FStudioDock::OpenStudio();
 	}
 
 	void RegisterMenus()

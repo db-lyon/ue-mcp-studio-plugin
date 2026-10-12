@@ -21,6 +21,10 @@
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SWidgetSwitcher.h"
+#include "SStudioPanel.h"
+#include "Containers/Ticker.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/SWindow.h"
@@ -39,6 +43,7 @@
 DEFINE_LOG_CATEGORY_STATIC(LogStudioDock, Log, All);
 
 const FName FStudioDock::TabId(TEXT("UEMCPStudioDock"));
+const FName FStudioDock::LegacyStatusTabId(TEXT("UEMCPStudio"));
 
 /** The dock tab's content: a placeholder Studio's window covers. Its paint is how the plugin knows the tab is on screen. */
 class SStudioDockArea : public SCompoundWidget
@@ -50,6 +55,14 @@ public:
 	void Construct(const FArguments& InArgs);
 
 	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
+
+private:
+	/** The placeholder Studio covers while it can run, the setup and status panel while it cannot. */
+	EActiveTimerReturnType Refresh(double, float);
+
+	TSharedPtr<SWidgetSwitcher> Switcher;
+	TSharedPtr<SBox> PanelSlot;
+	bool bPanelMade = false;
 };
 
 namespace StudioDockProtocol
@@ -377,10 +390,40 @@ namespace StudioDockImpl
 		Tab = NewTab;
 		Area = NewArea;
 		bPaintedLastRender = false;
+		UE_LOG(LogStudioDock, Log, TEXT("dock tab spawned"));
 		// A layout holding this tab means docked, whatever opened it.
 		SaveMode(true);
 		FStudioWindow::Open(TEXT("docked"));
 		return NewTab;
+	}
+
+	/**
+	 * The status tab of plugins before 0.1.0-beta.31, still in saved layouts. The dock tab
+	 * took its place: the layout extension puts a closed dock tab beside it, and on the next
+	 * tick the dock tab opens there (docked) or Studio opens in its window, and this one closes.
+	 */
+	TSharedRef<SDockTab> SpawnLegacyStatusTab(const FSpawnTabArgs&)
+	{
+		TSharedRef<SDockTab> Legacy = SNew(SDockTab).TabRole(ETabRole::NomadTab);
+		TWeakPtr<SDockTab> Weak = Legacy;
+		FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Weak](float)
+		{
+			if (FStudioDock::IsDockedMode())
+			{
+				FStudioDock::OpenTab();
+			}
+			else
+			{
+				FStudioWindow::Open();
+			}
+			if (const TSharedPtr<SDockTab> Old = Weak.Pin())
+			{
+				Old->RequestCloseTab();
+			}
+			UE_LOG(LogStudioDock, Log, TEXT("replaced the status tab of an older plugin in the saved layout"));
+			return false;
+		}));
+		return Legacy;
 	}
 
 	void RegisterTabs(TSharedPtr<FTabManager> TabManager)
@@ -400,6 +443,8 @@ namespace StudioDockImpl
 	void RegisterLayout(FLayoutExtender& Extender)
 	{
 		Extender.ExtendLayout(LevelEditorTabIds::LevelEditorSelectionDetails, ELayoutExtensionPosition::After, FTabManager::FTab(FStudioDock::TabId, ETabState::ClosedTab));
+		// Where an older plugin's status tab is in the layout, the dock tab takes its place.
+		Extender.ExtendLayout(FTabId(FStudioDock::LegacyStatusTabId), ELayoutExtensionPosition::Before, FTabManager::FTab(FStudioDock::TabId, ETabState::ClosedTab));
 	}
 
 	TSharedPtr<FTabManager> LevelEditorTabs()
@@ -428,7 +473,7 @@ namespace StudioDockImpl
 		{
 			return LOCTEXT("DockStarting", "Starting Studio.");
 		}
-		return LOCTEXT("DockNotRunning", "Studio is not running yet. Tools > UE-MCP Studio Status shows what it needs.");
+		return LOCTEXT("DockNotRunning", "Starting Studio.");
 	}
 }
 
@@ -440,31 +485,56 @@ void SStudioDockArea::Construct(const FArguments& InArgs)
 	ForceVolatile(true);
 	ChildSlot
 	[
-		SNew(SBorder)
-		.BorderImage(FCoreStyle::Get().GetBrush("GenericWhiteBox"))
-		// Studio's background, so a frame where the window is not over the tab yet looks the same.
-		.BorderBackgroundColor(FLinearColor(FColor(0x0c, 0x0c, 0x0b)))
-		.Padding(FMargin(20.f, 18.f))
+		SAssignNew(Switcher, SWidgetSwitcher)
+		+ SWidgetSwitcher::Slot()
 		[
-			SNew(SVerticalBox)
-			+ SVerticalBox::Slot().AutoHeight()
+			SNew(SBorder)
+			.BorderImage(FCoreStyle::Get().GetBrush("GenericWhiteBox"))
+			// Studio's background, so a frame where the window is not over the tab yet looks the same.
+			.BorderBackgroundColor(FLinearColor(FColor(0x0c, 0x0c, 0x0b)))
+			.Padding(FMargin(20.f, 18.f))
 			[
-				SNew(STextBlock)
-				.AutoWrapText(true)
-				.ColorAndOpacity(FSlateColor::UseSubduedForeground())
-				.Text_Static(&DockImpl::AreaText)
-			]
-			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Left).Padding(0.f, 12.f, 0.f, 0.f)
-			[
-				SNew(SButton)
-				.Visibility_Lambda([]() { return !FStudioDock::StudioCanDock() && FStudioWindow::IsOpen() ? EVisibility::Visible : EVisibility::Collapsed; })
-				.OnClicked_Lambda([]() { FStudioDock::SetDocked(false); return FReply::Handled(); })
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot().AutoHeight()
 				[
-					SNew(STextBlock).Text(LOCTEXT("DockOpenAsWindow", "Open as window"))
+					SNew(STextBlock)
+					.AutoWrapText(true)
+					.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+					.Text_Static(&DockImpl::AreaText)
+				]
+				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Left).Padding(0.f, 12.f, 0.f, 0.f)
+				[
+					SNew(SButton)
+					.Visibility_Lambda([]() { return !FStudioDock::StudioCanDock() && FStudioWindow::IsOpen() ? EVisibility::Visible : EVisibility::Collapsed; })
+					.OnClicked_Lambda([]() { FStudioDock::SetDocked(false); return FReply::Handled(); })
+					[
+						SNew(STextBlock).Text(LOCTEXT("DockOpenAsWindow", "Open as window"))
+					]
 				]
 			]
 		]
+		+ SWidgetSwitcher::Slot()
+		[
+			SAssignNew(PanelSlot, SBox)
+		]
 	];
+	Refresh(0.0, 0.f);
+	RegisterActiveTimer(1.f, FWidgetActiveTimerDelegate::CreateSP(this, &SStudioDockArea::Refresh));
+}
+
+EActiveTimerReturnType SStudioDockArea::Refresh(double, float)
+{
+	// Until the daemon runs there is no Studio to show: the setup page and status take the tab.
+	FStudioDaemonInfo Info;
+	const bool bLive = FStudioDaemon::ReadLive(Info);
+	if (!bLive && !bPanelMade)
+	{
+		// Made once it is needed: it holds a browser view.
+		bPanelMade = true;
+		PanelSlot->SetContent(SNew(SStudioPanel));
+	}
+	Switcher->SetActiveWidgetIndex(bLive ? 0 : 1);
+	return EActiveTimerReturnType::Continue;
 }
 
 int32 SStudioDockArea::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
@@ -516,6 +586,11 @@ void FStudioDock::Startup()
 		}
 	}
 
+	// Saved layouts from older plugins hold the status tab; it is not in any menu now.
+	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(LegacyStatusTabId, FOnSpawnTab::CreateStatic(&DockImpl::SpawnLegacyStatusTab))
+		.SetDisplayName(LOCTEXT("LegacyStatusTitle", "UE-MCP Studio"))
+		.SetMenuType(ETabSpawnerMenuType::Hidden);
+
 	FLevelEditorModule& LevelEditor = FModuleManager::LoadModuleChecked<FLevelEditorModule>(TEXT("LevelEditor"));
 	DockImpl::RegisterTabsHandle = LevelEditor.OnRegisterTabs().AddStatic(&DockImpl::RegisterTabs);
 	DockImpl::LayoutHandle = LevelEditor.OnRegisterLayoutExtensions().AddStatic(&DockImpl::RegisterLayout);
@@ -526,6 +601,7 @@ void FStudioDock::Shutdown()
 {
 	if (FSlateApplication::IsInitialized())
 	{
+		FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(LegacyStatusTabId);
 		FSlateApplication::Get().OnPostTick().Remove(DockImpl::PostTickHandle);
 		if (FSlateRenderer* Renderer = FSlateApplication::Get().GetRenderer())
 		{
@@ -596,9 +672,15 @@ bool FStudioDock::OpenStudio()
 {
 	if (IsDockedMode() && OpenTab())
 	{
-		return FStudioWindow::Open(TEXT("docked"));
+		FStudioWindow::Open(TEXT("docked"));
+		return true;
 	}
-	return FStudioWindow::Open(DockImpl::SavedMode() == TEXT("window") ? TEXT("window") : nullptr);
+	if (FStudioWindow::Open(DockImpl::SavedMode() == TEXT("window") ? TEXT("window") : nullptr))
+	{
+		return true;
+	}
+	// Studio cannot run yet: the dock tab shows the setup page.
+	return OpenTab();
 }
 
 void FStudioDock::SetDocked(bool bDocked)
