@@ -369,8 +369,13 @@ namespace StudioDockImpl
 		}
 	}
 
-	void OnTabClosed(TSharedRef<SDockTab>)
+	void OnTabClosed(TSharedRef<SDockTab> Closed)
 	{
+		// A tab replaced by a newer one (the migration below) does not clear the newer one.
+		if (Tab.Pin() != Closed)
+		{
+			return;
+		}
 		Tab.Reset();
 		Area.Reset();
 		PaintedWindow.Reset();
@@ -378,7 +383,7 @@ namespace StudioDockImpl
 		Publish();
 	}
 
-	TSharedRef<SDockTab> SpawnTab(const FSpawnTabArgs&)
+	TSharedRef<SDockTab> MakeDockTab()
 	{
 		TSharedRef<SStudioDockArea> NewArea = SNew(SStudioDockArea);
 		TSharedRef<SDockTab> NewTab = SNew(SDockTab)
@@ -397,6 +402,11 @@ namespace StudioDockImpl
 		return NewTab;
 	}
 
+	TSharedRef<SDockTab> SpawnTab(const FSpawnTabArgs&)
+	{
+		return MakeDockTab();
+	}
+
 	/**
 	 * The status tab of plugins before 0.1.0-beta.31, still in saved layouts. The dock tab
 	 * took its place: the layout extension puts a closed dock tab beside it, and on the next
@@ -408,15 +418,31 @@ namespace StudioDockImpl
 		TWeakPtr<SDockTab> Weak = Legacy;
 		FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Weak](float)
 		{
-			if (FStudioDock::IsDockedMode())
-			{
-				FStudioDock::OpenTab();
-			}
-			else
+			const TSharedPtr<SDockTab> Old = Weak.Pin();
+			FLevelEditorModule* LevelEditor = FModuleManager::GetModulePtr<FLevelEditorModule>(TEXT("LevelEditor"));
+			const TSharedPtr<FTabManager> Tabs = LevelEditor ? LevelEditor->GetLevelEditorTabManager() : nullptr;
+			if (!FStudioDock::IsDockedMode())
 			{
 				FStudioWindow::Open();
 			}
-			if (const TSharedPtr<SDockTab> Old = Weak.Pin())
+			else if (Old.IsValid() && Tabs.IsValid())
+			{
+				// The dock tab goes where the status tab is. Older plugins could leave it in a
+				// window of its own behind the editor; that copy closes, with its window.
+				const TSharedPtr<SWindow> StatusWindow = FSlateApplication::Get().FindWidgetWindow(Old.ToSharedRef());
+				const TSharedPtr<SDockTab> Dock = Tab.Pin();
+				const bool bInPlace = Dock.IsValid() && FSlateApplication::Get().FindWidgetWindow(Dock.ToSharedRef()) == StatusWindow;
+				if (!bInPlace)
+				{
+					if (Dock.IsValid())
+					{
+						Dock->RequestCloseTab();
+					}
+					Tabs->InsertNewDocumentTab(FStudioDock::LegacyStatusTabId, FStudioDock::TabId, FTabManager::FLiveTabSearch(), MakeDockTab());
+				}
+				UE_LOG(LogStudioDock, Log, TEXT("the dock tab took the old status tab's place (%s)"), bInPlace ? TEXT("already there") : TEXT("moved"));
+			}
+			if (Old.IsValid())
 			{
 				Old->RequestCloseTab();
 			}
