@@ -1,0 +1,8 @@
+# Unreal build output for the plugin and its host project.
+**/Binaries/
+**/Intermediate/
+**/Saved/
+**/DerivedDataCache/
+StudioHost/Plugins/UE_MCP_Bridge/
+release/
+node_modules/
