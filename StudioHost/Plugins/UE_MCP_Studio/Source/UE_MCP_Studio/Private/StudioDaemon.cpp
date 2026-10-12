@@ -33,8 +33,8 @@ namespace
 	// Used only until the first release manifest is fetched; after that the
 	// manifest's ueMcp.min and ueMcp.package decide, so the host never needs an
 	// update to follow a ue-mcp release.
-	const TCHAR* FallbackMinUeMcpVersion = TEXT("1.4.0-beta.1");
-	const TCHAR* FallbackUeMcpPackage = TEXT("ue-mcp@beta");
+	const TCHAR* FallbackMinUeMcpVersion = TEXT("1.4.1");
+	const TCHAR* FallbackUeMcpPackage = TEXT("ue-mcp@latest");
 
 	/** Semver order over X.Y.Z[-pre.N]; a prerelease sorts below its release. */
 	int32 CompareVersions(const FString& A, const FString& B)
