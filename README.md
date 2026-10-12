@@ -1,6 +1,6 @@
 # UE-MCP Studio editor plugin
 
-The Unreal Editor plugin for [UE-MCP Studio](https://github.com/db-lyon/ue-mcp-studio): a dock tab that hosts Studio inside the editor, the native calls the page uses, and the launch of the project's [ue-mcp](https://github.com/db-lyon/ue-mcp) daemon. On first start it installs ue-mcp and the Studio extension for the project. Free and open source under the MIT license.
+The Unreal Editor plugin for [UE-MCP Studio](https://github.com/db-lyon/ue-mcp-studio): the toolbar button and Tools menu entry that open Studio in its own window, a status tab with the setup page, the native calls the setup page uses, and the launch of the project's [ue-mcp](https://github.com/db-lyon/ue-mcp) daemon. On first start it installs ue-mcp and the Studio extension for the project. Free and open source under the MIT license.
 
 ## Install
 
@@ -9,6 +9,8 @@ Unreal Engine 5.7 and 5.8 on Windows, with [Node.js](https://nodejs.org) install
 1. Download `UE_MCP_Studio-<version>-UE<engine>-Win64.zip` for your engine from the [latest release](https://github.com/db-lyon/ue-mcp-studio-plugin/releases/latest).
 2. Unzip it into your project's `Plugins/` folder, so that `Plugins/UE_MCP_Studio/UE_MCP_Studio.uplugin` exists.
 3. Open the project and open Studio from the toolbar button or **Tools > UE-MCP Studio**.
+
+Studio runs in its own window, a separate process, so it keeps working while the editor is busy. **Tools > UE-MCP Studio Status** opens a tab with an Open Studio button, the state of the editor, the daemon and updates, and the setup page until Studio can run. When that tab is part of your layout, the window opens with the editor.
 
 Studio's **Settings > Update** keeps the plugin, the Studio extension and ue-mcp current with one button.
 
