@@ -53,6 +53,8 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SWindow.h"
 #include "Widgets/Text/STextBlock.h"
+#include "Widgets/Text/SRichTextBlock.h"
+#include "Styling/SlateStyle.h"
 
 #if PLATFORM_WINDOWS
 #include "Windows/AllowWindowsPlatformTypes.h"
@@ -207,6 +209,15 @@ namespace StudioQuickAsk
 				SendStyle.SetNormal(SendNormal).SetHovered(SendHovered).SetPressed(SendNormal)
 					.SetNormalForeground(Theme.OnAccent).SetHoveredForeground(Theme.OnAccent).SetPressedForeground(Theme.OnAccent);
 			}
+			// The reply's rich text: <b> bold, <c> code, in the theme's text colour.
+			BodyStyle = FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("NormalText");
+			if (!Theme.bEditor)
+			{
+				BodyStyle.SetColorAndOpacity(Theme.Text);
+			}
+			RichStyle = MakeShared<FSlateStyleSet>(TEXT("UEMCPStudioPillText"));
+			RichStyle->Set("b", FTextBlockStyle(BodyStyle).SetFont(FCoreStyle::GetDefaultFontStyle("Bold", BodyStyle.Font.Size)));
+			RichStyle->Set("c", FTextBlockStyle(BodyStyle).SetFont(FCoreStyle::GetDefaultFontStyle("Mono", BodyStyle.Font.Size - 1)));
 			TSharedRef<SWrapBox> Chips = SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(4.0, 4.0));
 			for (int32 i = 0; i < Context.Num() && i < MaxChips; ++i)
 			{
@@ -441,6 +452,8 @@ namespace StudioQuickAsk
 		FTSTicker::FDelegateHandle PollHandle;
 		TSharedPtr<SWidgetSwitcher> Pages;
 		TSharedPtr<SVerticalBox> StepsBox;
+		FTextBlockStyle BodyStyle;
+		TSharedPtr<FSlateStyleSet> RichStyle;
 
 		bool IsLive() const { return Status == TEXT("running") || Status == TEXT("waiting"); }
 
@@ -506,7 +519,8 @@ namespace StudioQuickAsk
 		{
 			T.TryGetStringField(TEXT("status"), Status);
 			FString Text;
-			Reply = T.TryGetStringField(TEXT("reply"), Text) ? Plain(Text) : FString();
+			// Studio lays the reply out as rich text; an older Studio sends only the markdown.
+			Reply = T.TryGetStringField(TEXT("replyMarkup"), Text) ? Text : T.TryGetStringField(TEXT("reply"), Text) ? Escaped(Plain(Text)) : FString();
 			NeedsYou = T.TryGetStringField(TEXT("needsYou"), Text) ? Text : FString();
 			ThreadError = T.TryGetStringField(TEXT("error"), Text) ? Text : FString();
 			const int32 Earlier = T.HasTypedField<EJson::Number>(TEXT("earlier")) ? static_cast<int32>(T.GetNumberField(TEXT("earlier"))) : 0;
@@ -548,6 +562,15 @@ namespace StudioQuickAsk
 					]
 				];
 			}
+		}
+
+		/** Text that rich text markup shows as written. */
+		static FString Escaped(FString Text)
+		{
+			Text.ReplaceInline(TEXT("&"), TEXT("&amp;"));
+			Text.ReplaceInline(TEXT("<"), TEXT("&lt;"));
+			Text.ReplaceInline(TEXT(">"), TEXT("&gt;"));
+			return Text;
 		}
 
 		/** Markdown read as text: emphasis and code marks dropped. */
@@ -597,7 +620,8 @@ namespace StudioQuickAsk
 						SNew(SScrollBox)
 						+ SScrollBox::Slot()
 						[
-							SNew(STextBlock).AutoWrapText(true).ColorAndOpacity(TextColor()).Text_Lambda([this] { return FText::FromString(Reply); })
+							SNew(SRichTextBlock).AutoWrapText(true).TextStyle(&BodyStyle).DecoratorStyleSet(RichStyle.Get())
+							.Text_Lambda([this] { return FText::FromString(Reply); })
 						]
 					]
 				]
