@@ -11,9 +11,10 @@
  *
  * --fab       also writes UE_MCP_Studio-<version>-UE<engine>-Fab.zip, the source-only
  *             submission Fab builds itself. --fab-url sets FabURL once the listing exists.
- * --publish   creates release v<version> on db-lyon/ue-mcp-studio-plugin, marked latest so
- *             .../releases/latest/download/plugin.json resolves. It refuses unless every
- *             engine's zip is attached and plugin.json points at this release.
+ * --publish   creates release v<version> on db-lyon/ue-mcp-studio-plugin. A stable version is
+ *             marked latest, so .../releases/latest/download/plugin.json resolves to it; a
+ *             prerelease is published beside it for testers and never becomes latest.
+ *             It refuses unless every engine's zip is attached and plugin.json points at this release.
  */
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
@@ -115,7 +116,9 @@ if (has("--publish")) {
   const notes = arg("--notes-file", null);
   const notesArgs = notes ? ["--notes-file", notes] : ["--notes", `UE-MCP Studio editor plugin ${version}.`];
   const files = fs.readdirSync(OUT).map((f) => path.join(OUT, f));
-  run("gh", ["release", "create", tag, "--repo", REPO, "--title", tag, "--target", "main", "--latest", ...notesArgs, ...files]);
+  // A prerelease is for testers: it never becomes latest, so Studio's updater cannot pick it up.
+  const channel = version.includes("-") ? ["--prerelease", "--latest=false"] : ["--latest"];
+  run("gh", ["release", "create", tag, "--repo", REPO, "--title", tag, "--target", "main", ...channel, ...notesArgs, ...files]);
   console.log(`published ${tag} to ${REPO}`);
 }
 
