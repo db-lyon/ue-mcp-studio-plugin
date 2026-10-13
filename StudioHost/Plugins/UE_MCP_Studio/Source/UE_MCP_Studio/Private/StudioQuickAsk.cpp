@@ -25,6 +25,8 @@
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
 #include "LevelEditor.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "LevelEditorViewport.h"
 #include "SceneView.h"
 #include "SLevelViewport.h"
@@ -97,21 +99,63 @@ namespace StudioQuickAsk
 		return R;
 	}
 
-	const FSlateBrush* PillBrush()
+	/**
+	 * The pill's colours for the theme picked in Studio's Settings: Studio's own
+	 * palette for ue-mcp and Light, Unreal's style for Editor. Outlines are
+	 * Studio's translucent lines laid over the panel, so they stay opaque here.
+	 */
+	struct FPillTheme
 	{
-		static const FSlateRoundedBoxBrush Brushes[4] = {
-			FSlateRoundedBoxBrush(FStyleColors::Panel, PillRadii(0), FStyleColors::InputOutline, 1.0f),
-			FSlateRoundedBoxBrush(FStyleColors::Panel, PillRadii(1), FStyleColors::InputOutline, 1.0f),
-			FSlateRoundedBoxBrush(FStyleColors::Panel, PillRadii(2), FStyleColors::InputOutline, 1.0f),
-			FSlateRoundedBoxBrush(FStyleColors::Panel, PillRadii(3), FStyleColors::InputOutline, 1.0f),
-		};
-		return &Brushes[PointCorner & 3];
-	}
+		bool bEditor = true;
+		FSlateColor Panel, Outline, Input, Text, Dim, Accent, AccentHi, OnAccent;
+	};
 
-	const FSlateBrush* ChipBrush()
+	FLinearColor Hex(const TCHAR* H) { return FLinearColor(FColor::FromHex(H)); }
+
+	/** The theme in the project's Studio settings, Editor when there is none. */
+	FPillTheme ReadTheme()
 	{
-		static const FSlateRoundedBoxBrush Brush(FStyleColors::Input, 9.0f, FStyleColors::InputOutline, 1.0f);
-		return &Brush;
+		FString Json;
+		const FString Path = FPaths::Combine(FPlatformMisc::GetEnvironmentVariable(PLATFORM_WINDOWS ? TEXT("USERPROFILE") : TEXT("HOME")),
+			TEXT(".ue-mcp"), TEXT("data"), FStudioDaemon::ProjectKey(), TEXT("studio"), TEXT("settings.json"));
+		TSharedPtr<FJsonObject> Settings;
+		FString Name = TEXT("ue-mcp");
+		if (FFileHelper::LoadFileToString(Json, *Path) && FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), Settings) && Settings.IsValid())
+		{
+			Settings->TryGetStringField(TEXT("theme"), Name);
+		}
+		FPillTheme T;
+		if (Name == TEXT("light"))
+		{
+			T.bEditor = false;
+			T.Panel = Hex(TEXT("ffffff"));
+			T.Outline = Hex(TEXT("d9d8d6"));
+			T.Input = Hex(TEXT("f7f5f1"));
+			T.Text = Hex(TEXT("1b1a17"));
+			T.Dim = Hex(TEXT("8e8a81"));
+			T.Accent = Hex(TEXT("c95f06"));
+			T.AccentHi = Hex(TEXT("e8720c"));
+			T.OnAccent = Hex(TEXT("ffffff"));
+		}
+		else if (Name != TEXT("editor"))
+		{
+			T.bEditor = false;
+			T.Panel = Hex(TEXT("131312"));
+			T.Outline = Hex(TEXT("2f2f2d"));
+			T.Input = Hex(TEXT("0c0c0b"));
+			T.Text = Hex(TEXT("ece9e3"));
+			T.Dim = Hex(TEXT("7b7871"));
+			T.Accent = Hex(TEXT("e8720c"));
+			T.AccentHi = Hex(TEXT("f28a2e"));
+			T.OnAccent = Hex(TEXT("140a02"));
+		}
+		else
+		{
+			T.Panel = FStyleColors::Panel;
+			T.Outline = FStyleColors::InputOutline;
+			T.Input = FStyleColors::Input;
+		}
+		return T;
 	}
 
 	FText ChipText(const FStudioQuickContext& C)
@@ -141,6 +185,25 @@ namespace StudioQuickAsk
 		void Construct(const FArguments& InArgs)
 		{
 			Context = InArgs._Context;
+			Theme = ReadTheme();
+			for (int32 i = 0; i < 4; ++i)
+			{
+				PillBrushes.Add(FSlateRoundedBoxBrush(Theme.Panel, PillRadii(i), Theme.Outline, 1.0f));
+			}
+			ChipBrush = FSlateRoundedBoxBrush(Theme.Input, 9.0f, Theme.Outline, 1.0f);
+			BoxStyle = FAppStyle::Get().GetWidgetStyle<FEditableTextBoxStyle>("NormalEditableTextBox");
+			SendStyle = FAppStyle::Get().GetWidgetStyle<FButtonStyle>("PrimaryButton");
+			if (!Theme.bEditor)
+			{
+				BoxNormal = FSlateRoundedBoxBrush(Theme.Input, 6.0f, Theme.Outline, 1.0f);
+				BoxFocused = FSlateRoundedBoxBrush(Theme.Input, 6.0f, Theme.Accent, 1.0f);
+				BoxStyle.SetBackgroundImageNormal(BoxNormal).SetBackgroundImageHovered(BoxNormal).SetBackgroundImageFocused(BoxFocused).SetBackgroundImageReadOnly(BoxNormal)
+					.SetForegroundColor(Theme.Text).SetFocusedForegroundColor(Theme.Text);
+				SendNormal = FSlateRoundedBoxBrush(Theme.Accent, 6.0f);
+				SendHovered = FSlateRoundedBoxBrush(Theme.AccentHi, 6.0f);
+				SendStyle.SetNormal(SendNormal).SetHovered(SendHovered).SetPressed(SendNormal)
+					.SetNormalForeground(Theme.OnAccent).SetHoveredForeground(Theme.OnAccent).SetPressedForeground(Theme.OnAccent);
+			}
 			TSharedRef<SWrapBox> Chips = SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(4.0, 4.0));
 			for (int32 i = 0; i < Context.Num() && i < MaxChips; ++i)
 			{
@@ -154,7 +217,7 @@ namespace StudioQuickAsk
 			ChildSlot
 			[
 				SNew(SBorder)
-				.BorderImage_Lambda([] { return PillBrush(); })
+				.BorderImage_Lambda([this] { return &PillBrushes[PointCorner & 3]; })
 				.Padding(FMargin(14.0f, 8.0f, 8.0f, 6.0f))
 				[
 					SNew(SBox)
@@ -171,6 +234,7 @@ namespace StudioQuickAsk
 							+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
 							[
 								SAssignNew(Box, SEditableTextBox)
+								.Style(&BoxStyle)
 								.Text(FText::FromString(InArgs._Text))
 								.HintText(Context.Num() ? LOCTEXT("HintContext", "Ask about this") : LOCTEXT("Hint", "Ask Studio"))
 								.IsEnabled_Lambda([this] { return !bSending; })
@@ -180,7 +244,7 @@ namespace StudioQuickAsk
 							+ SHorizontalBox::Slot().AutoWidth().Padding(6.0f, 0.0f, 0.0f, 0.0f).VAlign(VAlign_Center)
 							[
 								SNew(SButton)
-								.ButtonStyle(FAppStyle::Get(), "PrimaryButton")
+								.ButtonStyle(&SendStyle)
 								.Text_Lambda([this] { return bSending ? LOCTEXT("Sending", "Sending") : LOCTEXT("Send", "Send"); })
 								.IsEnabled_Lambda([this] { return !bSending; })
 								.OnClicked_Lambda([this] { Send(); return FReply::Handled(); })
@@ -191,7 +255,7 @@ namespace StudioQuickAsk
 							SNew(STextBlock)
 							.Font(FAppStyle::GetFontStyle("SmallFont"))
 							.AutoWrapText(true)
-							.ColorAndOpacity_Lambda([this] { return Error.IsEmpty() ? FSlateColor::UseSubduedForeground() : FSlateColor(FStyleColors::Error); })
+							.ColorAndOpacity_Lambda([this] { return !Error.IsEmpty() ? FSlateColor(FStyleColors::Error) : Theme.bEditor ? FSlateColor::UseSubduedForeground() : FSlateColor(Theme.Dim); })
 							.Text_Lambda([this] { return Error.IsEmpty() ? LOCTEXT("KeysHint", "Enter to send, Esc to close") : Error; })
 						]
 					]
@@ -313,15 +377,25 @@ namespace StudioQuickAsk
 
 	private:
 		FVector2D DragOffset = FVector2D::ZeroVector;
+		FPillTheme Theme;
+		TArray<FSlateRoundedBoxBrush> PillBrushes;
+		FSlateRoundedBoxBrush ChipBrush = FSlateRoundedBoxBrush(FLinearColor::Transparent);
+		FSlateRoundedBoxBrush BoxNormal = FSlateRoundedBoxBrush(FLinearColor::Transparent);
+		FSlateRoundedBoxBrush BoxFocused = FSlateRoundedBoxBrush(FLinearColor::Transparent);
+		FSlateRoundedBoxBrush SendNormal = FSlateRoundedBoxBrush(FLinearColor::Transparent);
+		FSlateRoundedBoxBrush SendHovered = FSlateRoundedBoxBrush(FLinearColor::Transparent);
+		FEditableTextBoxStyle BoxStyle;
+		FButtonStyle SendStyle;
 
 		TSharedRef<SWidget> Chip(const FText& Text, const FText& Tooltip)
 		{
 			return SNew(SBorder)
-				.BorderImage(ChipBrush())
+				.BorderImage(&ChipBrush)
 				.Padding(FMargin(8.0f, 2.0f))
 				.ToolTipText(Tooltip)
 				[
 					SNew(STextBlock).Font(FAppStyle::GetFontStyle("SmallFont")).Text(Text)
+						.ColorAndOpacity(Theme.bEditor ? FSlateColor::UseForeground() : FSlateColor(Theme.Text))
 				];
 		}
 
