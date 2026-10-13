@@ -8,13 +8,15 @@
 class AActor;
 struct FAssetData;
 
-/** An actor or asset a quick ask is about, as POST /v1/ext/studio/quick takes it. */
+/** What a quick ask is about, as POST /v1/ext/studio/quick takes it: an actor, asset, location, graph node or graph. */
 struct FStudioQuickContext
 {
 	FString Kind;
 	FString Label;
 	FString Path;
 	FString Class;
+	/** For a graph, the cursor's position in it. */
+	FString At;
 };
 
 /** "Ask Studio", rebindable in Editor Preferences > Keyboard Shortcuts. */

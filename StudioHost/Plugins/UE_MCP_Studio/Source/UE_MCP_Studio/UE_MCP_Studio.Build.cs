@@ -26,6 +26,7 @@ public class UE_MCP_Studio : ModuleRules
 			"InputCore",
 			"ApplicationCore",
 			"ContentBrowser",
+			"GraphEditor",
 		});
 	}
 }

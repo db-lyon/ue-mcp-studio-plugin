@@ -28,6 +28,11 @@
 #include "LevelEditorViewport.h"
 #include "SceneView.h"
 #include "SLevelViewport.h"
+#include "EdGraph/EdGraph.h"
+#include "EdGraph/EdGraphNode.h"
+#include "SGraphNode.h"
+#include "SGraphPanel.h"
+#include "Subsystems/AssetEditorSubsystem.h"
 #include "Widgets/SViewport.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
@@ -111,6 +116,10 @@ namespace StudioQuickAsk
 
 	FText ChipText(const FStudioQuickContext& C)
 	{
+		if (C.Kind == TEXT("graph"))
+		{
+			return FText::Format(LOCTEXT("GraphChip", "In {0}"), FText::FromString(C.Label));
+		}
 		if (C.Kind == TEXT("location"))
 		{
 			return C.Label.IsEmpty() ? LOCTEXT("HereChip", "Here") : FText::Format(LOCTEXT("HereOnChip", "Here, on {0}"), FText::FromString(C.Label));
@@ -242,7 +251,7 @@ namespace StudioQuickAsk
 				}
 				else if (Code == 400 && Message.ToString().Contains(TEXT("context kind")))
 				{
-					Message = LOCTEXT("NoLocation", "This Studio does not take the point under the cursor. Update Studio to 0.1.2-beta.19 or later.");
+					Message = LOCTEXT("NoLocation", "This Studio does not take what is under the cursor. Update Studio to 0.1.2-beta.20 or later.");
 				}
 				UE_LOG(LogStudioQuickAsk, Warning, TEXT("quick ask answered %d: %s"), Code, *Message.ToString());
 				if (TSharedPtr<SPill> P = Weak.Pin())
@@ -413,10 +422,114 @@ namespace StudioQuickAsk
 		return true;
 	}
 
-	/** What a hotkey or gesture over the level viewport carries: the point under the cursor, then any selected actors. */
-	TArray<FStudioQuickContext> ViewportContext(FSlateApplication& App, const FVector2D& Screen, bool bSelection)
+	/**
+	 * The asset a graph edits. Some editors (materials) edit a transient copy, so
+	 * that copy is matched by name against the assets open in an editor.
+	 */
+	FString GraphAsset(const UEdGraph* Graph)
+	{
+		const UPackage* Package = Graph->GetOutermost();
+		if (Package->GetName() != TEXT("/Engine/Transient"))
+		{
+			return Package->GetName();
+		}
+		const UObject* Top = Graph;
+		while (Top->GetOuter() && Top->GetOuter() != Package)
+		{
+			Top = Top->GetOuter();
+		}
+		if (GEditor)
+		{
+			if (UAssetEditorSubsystem* Editors = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
+			{
+				for (const UObject* Asset : Editors->GetAllEditedAssets())
+				{
+					if (Asset && Asset->GetFName() == Top->GetFName() && Asset->GetOutermost() != Package)
+					{
+						return Asset->GetPathName();
+					}
+				}
+			}
+		}
+		return Package->GetName();
+	}
+
+	FStudioQuickContext NodeContext(const UEdGraphNode* Node, const FString& Asset, bool bHovered)
+	{
+		FStudioQuickContext C;
+		C.Kind = TEXT("node");
+		C.Label = Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
+		C.Class = Node->GetClass()->GetName();
+		// The node's own path, unless it lives in a transient copy that nothing else can find.
+		C.Path = Node->GetOutermost()->GetName() == TEXT("/Engine/Transient")
+			? FString::Printf(TEXT("%s, graph %s, node %s"), *Asset, *Node->GetGraph()->GetName(), *Node->GetName())
+			: Node->GetPathName();
+		C.At = bHovered ? TEXT("under the cursor") : TEXT("selected");
+		return C;
+	}
+
+	/**
+	 * Over a graph editor (Blueprint, material, Niagara and the rest share it): the
+	 * graph with the cursor's position in it, the node under the cursor, then the
+	 * other selected nodes. Empty anywhere else.
+	 */
+	TArray<FStudioQuickContext> GraphContext(FSlateApplication& App, const FVector2D& Screen)
 	{
 		TArray<FStudioQuickContext> Out;
+		const FWidgetPath Path = App.LocateWindowUnderMouse(Screen, App.GetInteractiveTopLevelWindows());
+		static const FName GraphPanel(TEXT("SGraphPanel"));
+		for (int32 i = Path.Widgets.Num() - 1; i >= 0; --i)
+		{
+			if (Path.Widgets[i].Widget->GetType() != GraphPanel)
+			{
+				continue;
+			}
+			const TSharedRef<SGraphPanel> Panel = StaticCastSharedRef<SGraphPanel>(Path.Widgets[i].Widget);
+			const UEdGraph* Graph = Panel->GetGraphObj();
+			if (!Graph)
+			{
+				return Out;
+			}
+			FStudioQuickContext G;
+			G.Kind = TEXT("graph");
+			G.Label = Graph->GetName();
+			G.Class = GraphAsset(Graph);
+			G.Path = Graph->GetOutermost()->GetName() == TEXT("/Engine/Transient") ? FString::Printf(TEXT("%s, graph %s"), *G.Class, *Graph->GetName()) : Graph->GetPathName();
+			const FVector2D Local = Path.Widgets[i].Geometry.AbsoluteToLocal(Screen);
+			const FVector2D InGraph = Panel->PanelCoordToGraphCoord(Local);
+			G.At = FString::Printf(TEXT("X=%.0f Y=%.0f"), InGraph.X, InGraph.Y);
+			Out.Add(G);
+			// A graph panel's children are its nodes, so the next widget down the path is the node under the cursor.
+			const UEdGraphNode* Hovered = nullptr;
+			// Its node widgets are all SGraphNode subclasses (SGraphNodeK2Default, SNiagaraGraphNode, ...); the name check guards the cast.
+			if (i + 1 < Path.Widgets.Num() && Path.Widgets[i + 1].Widget->GetType().ToString().Contains(TEXT("Node")))
+			{
+				Hovered = StaticCastSharedRef<SGraphNode>(Path.Widgets[i + 1].Widget)->GetNodeObj();
+				if (Hovered)
+				{
+					Out.Add(NodeContext(Hovered, G.Class, true));
+				}
+			}
+			for (const UEdGraphNode* Node : Panel->GetSelectedGraphNodes())
+			{
+				if (Node && Node != Hovered)
+				{
+					Out.Add(NodeContext(Node, G.Class, false));
+				}
+			}
+			return Out;
+		}
+		return Out;
+	}
+
+	/** What a hotkey or gesture carries: over the level viewport the point under the cursor (and with the gesture the selected actors), over a graph its nodes. */
+	TArray<FStudioQuickContext> ViewportContext(FSlateApplication& App, const FVector2D& Screen, bool bSelection)
+	{
+		TArray<FStudioQuickContext> Out = GraphContext(App, Screen);
+		if (Out.Num())
+		{
+			return Out;
+		}
 		FStudioQuickContext Point;
 		if (PointUnderCursor(App, Screen, Point))
 		{
@@ -580,6 +693,18 @@ void FStudioQuickAsk::Startup()
 	ConsoleCommands.Add(Console.RegisterConsoleCommand(TEXT("Studio.QuickAsk.Close"),
 		TEXT("Close the Ask Studio pill, as Esc does."),
 		FConsoleCommandDelegate::CreateStatic(&FStudioQuickAsk::Close)));
+	ConsoleCommands.Add(Console.RegisterConsoleCommand(TEXT("Studio.QuickAsk.ContextAt"),
+		TEXT("Log the context the pill would carry from a screen point, in pixels, without opening it. Studio.QuickAsk.ContextAt X Y"),
+		FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+		{
+			if (Args.Num() < 2 || !FSlateApplication::IsInitialized())
+			{
+				return;
+			}
+			const FVector2D At(FCString::Atof(*Args[0]), FCString::Atof(*Args[1]));
+			UE_LOG(LogStudioQuickAsk, Log, TEXT("context at %.0f,%.0f: %s"), At.X, At.Y,
+				*FStudioQuickAsk::RequestBody(TEXT("-"), ViewportContext(FSlateApplication::Get(), At, true)));
+		})));
 }
 
 void FStudioQuickAsk::Shutdown()
@@ -845,6 +970,10 @@ FString FStudioQuickAsk::RequestBody(const FString& Text, const TArray<FStudioQu
 			if (!C.Class.IsEmpty())
 			{
 				Item->SetStringField(TEXT("class"), C.Class);
+			}
+			if (!C.At.IsEmpty())
+			{
+				Item->SetStringField(TEXT("at"), C.At);
 			}
 			Items.Add(MakeShared<FJsonValueObject>(Item));
 		}
