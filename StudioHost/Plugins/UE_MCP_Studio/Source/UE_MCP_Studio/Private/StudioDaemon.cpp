@@ -314,7 +314,8 @@ void FStudioDaemon::EnsureRunning()
 		}
 		// Kept for the next start, when PackageSpec needs the ue-mcp pin before any network reply.
 		FFileHelper::SaveStringToFile(Body, *ManifestCachePath());
-		if (Latest == Installed)
+		// Only newer: a prerelease installed for testing is never replaced by the older stable release.
+		if (CompareVersions(Latest, Installed) <= 0)
 		{
 			return;
 		}
