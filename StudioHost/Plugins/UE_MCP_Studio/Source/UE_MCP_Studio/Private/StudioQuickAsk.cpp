@@ -47,6 +47,9 @@
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SWrapBox.h"
+#include "Widgets/Layout/SScrollBox.h"
+#include "Widgets/Layout/SWidgetSwitcher.h"
+#include "Widgets/Layout/SSpacer.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SWindow.h"
 #include "Widgets/Text/STextBlock.h"
@@ -223,6 +226,9 @@ namespace StudioQuickAsk
 					SNew(SBox)
 					.WidthOverride(440.0f)
 					[
+						SAssignNew(Pages, SWidgetSwitcher)
+						+ SWidgetSwitcher::Slot()
+						[
 						SNew(SVerticalBox)
 						+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
 						[
@@ -258,10 +264,23 @@ namespace StudioQuickAsk
 							.ColorAndOpacity_Lambda([this] { return !Error.IsEmpty() ? FSlateColor(FStyleColors::Error) : Theme.bEditor ? FSlateColor::UseSubduedForeground() : FSlateColor(Theme.Dim); })
 							.Text_Lambda([this] { return Error.IsEmpty() ? LOCTEXT("KeysHint", "Enter to send, Esc to close") : Error; })
 						]
+						]
+						+ SWidgetSwitcher::Slot()
+						[
+							ThreadPage()
+						]
 					]
 				]
 			];
 		}
+
+		virtual ~SPill() override
+		{
+			FTSTicker::GetCoreTicker().RemoveTicker(PollHandle);
+		}
+
+		/** Once a thread runs, clicking elsewhere leaves the pill open, so the editor can be watched while the agent works. */
+		bool IsThread() const { return !SessionId.IsEmpty(); }
 
 		void FocusBox()
 		{
@@ -299,6 +318,16 @@ namespace StudioQuickAsk
 				if (Code == 201 || Code == 200)
 				{
 					UE_LOG(LogStudioQuickAsk, Log, TEXT("quick ask: %s"), *Response->GetContentAsString());
+					TSharedPtr<FJsonObject> Created;
+					FString Id;
+					if (FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Response->GetContentAsString()), Created) && Created.IsValid() && Created->TryGetStringField(TEXT("sessionId"), Id))
+					{
+						if (TSharedPtr<SPill> P = Weak.Pin())
+						{
+							P->StartThread(Id);
+							return;
+						}
+					}
 					FStudioQuickAsk::Close();
 					FStudioDock::OpenStudio();
 					return;
@@ -375,8 +404,248 @@ namespace StudioQuickAsk
 		bool bSending = false;
 		FText Error;
 
+		/** Show the session's thread in place of the prompt, and follow it until the turn ends. */
+		void StartThread(const FString& Id)
+		{
+			SessionId = Id;
+			Asked = Box->GetText().ToString().TrimStartAndEnd();
+			bSending = false;
+			Status = TEXT("running");
+			Pages->SetActiveWidgetIndex(1);
+			FSlateApplication::Get().SetAllUserFocus(AsShared(), EFocusCause::SetDirectly);
+			Poll();
+			TWeakPtr<SPill> Weak = StaticCastSharedRef<SPill>(AsShared());
+			PollHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Weak](float)
+			{
+				TSharedPtr<SPill> P = Weak.Pin();
+				if (!P.IsValid())
+				{
+					return false;
+				}
+				P->Poll();
+				return P->IsLive();
+			}), 0.5f);
+		}
+
 	private:
 		FVector2D DragOffset = FVector2D::ZeroVector;
+
+		// The thread: the session the pill started and the turn as Studio last described it.
+		FString SessionId;
+		FString Asked;
+		FString Status;
+		FString Reply;
+		FString NeedsYou;
+		FString ThreadError;
+		bool bPolling = false;
+		FTSTicker::FDelegateHandle PollHandle;
+		TSharedPtr<SWidgetSwitcher> Pages;
+		TSharedPtr<SVerticalBox> StepsBox;
+
+		bool IsLive() const { return Status == TEXT("running") || Status == TEXT("waiting"); }
+
+		FSlateColor TextColor() const { return Theme.bEditor ? FSlateColor::UseForeground() : FSlateColor(Theme.Text); }
+		FSlateColor DimColor() const { return Theme.bEditor ? FSlateColor::UseSubduedForeground() : FSlateColor(Theme.Dim); }
+
+		/** One call to Studio; the callback runs on the game thread with the status code and body. */
+		void Call(const FString& Verb, const FString& Path, TFunction<void(int32, const FString&)> Done)
+		{
+			FStudioDaemonInfo Info;
+			if (!FStudioDaemon::ReadLive(Info))
+			{
+				Done(0, FString());
+				return;
+			}
+			TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
+			Request->SetURL(FString::Printf(TEXT("http://127.0.0.1:%d/v1/ext/studio%s"), Info.Port, *Path));
+			Request->SetVerb(Verb);
+			Request->SetHeader(TEXT("Authorization"), TEXT("Bearer ") + Info.Token);
+			if (Verb == TEXT("POST"))
+			{
+				Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+				Request->SetContentAsString(TEXT("{}"));
+			}
+			Request->OnProcessRequestComplete().BindLambda([Done](FHttpRequestPtr, FHttpResponsePtr Response, bool bOk)
+			{
+				Done(bOk && Response.IsValid() ? Response->GetResponseCode() : 0, Response.IsValid() ? Response->GetContentAsString() : FString());
+			});
+			Request->ProcessRequest();
+		}
+
+		void Poll()
+		{
+			if (bPolling || SessionId.IsEmpty())
+			{
+				return;
+			}
+			bPolling = true;
+			TWeakPtr<SPill> Weak = StaticCastSharedRef<SPill>(AsShared());
+			Call(TEXT("GET"), TEXT("/quick/") + SessionId, [Weak](int32 Code, const FString& Body)
+			{
+				TSharedPtr<SPill> P = Weak.Pin();
+				if (!P.IsValid())
+				{
+					return;
+				}
+				P->bPolling = false;
+				TSharedPtr<FJsonObject> T;
+				if (Code == 200 && FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Body), T) && T.IsValid())
+				{
+					P->Apply(*T);
+				}
+				else if (Code == 404)
+				{
+					// A Studio older than the thread view: the session runs, it just cannot be shown here.
+					P->ThreadError = TEXT("This Studio cannot show the thread here. Continue it in Studio.");
+					P->Status = TEXT("idle");
+				}
+			});
+		}
+
+		void Apply(const FJsonObject& T)
+		{
+			T.TryGetStringField(TEXT("status"), Status);
+			FString Text;
+			Reply = T.TryGetStringField(TEXT("reply"), Text) ? Plain(Text) : FString();
+			NeedsYou = T.TryGetStringField(TEXT("needsYou"), Text) ? Text : FString();
+			ThreadError = T.TryGetStringField(TEXT("error"), Text) ? Text : FString();
+			const int32 Earlier = T.HasTypedField<EJson::Number>(TEXT("earlier")) ? static_cast<int32>(T.GetNumberField(TEXT("earlier"))) : 0;
+			StepsBox->ClearChildren();
+			if (Earlier > 0)
+			{
+				StepsBox->AddSlot().AutoHeight()
+				[
+					SNew(STextBlock).Font(FAppStyle::GetFontStyle("SmallFont")).ColorAndOpacity(DimColor())
+					.Text(FText::Format(LOCTEXT("EarlierSteps", "{0} earlier steps"), FText::AsNumber(Earlier)))
+				];
+			}
+			const TArray<TSharedPtr<FJsonValue>>* Steps = nullptr;
+			if (!T.TryGetArrayField(TEXT("steps"), Steps))
+			{
+				return;
+			}
+			for (const TSharedPtr<FJsonValue>& V : *Steps)
+			{
+				const TSharedPtr<FJsonObject>* Step = nullptr;
+				if (!V->TryGetObject(Step))
+				{
+					continue;
+				}
+				const FString State = (*Step)->GetStringField(TEXT("state"));
+				const FSlateColor StateColor = State == TEXT("failed") ? FSlateColor(FStyleColors::Error)
+					: State == TEXT("running") ? (Theme.bEditor ? FSlateColor(FStyleColors::Primary) : FSlateColor(Theme.Accent))
+					: DimColor();
+				StepsBox->AddSlot().AutoHeight().Padding(0.0f, 1.0f)
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot().AutoWidth()
+					[
+						SNew(STextBlock).Font(FAppStyle::GetFontStyle("SmallFont")).ColorAndOpacity(TextColor()).Text(FText::FromString((*Step)->GetStringField(TEXT("label"))))
+					]
+					+ SHorizontalBox::Slot().AutoWidth().Padding(8.0f, 0.0f, 0.0f, 0.0f)
+					[
+						SNew(STextBlock).Font(FAppStyle::GetFontStyle("SmallFont")).ColorAndOpacity(StateColor).Text(FText::FromString(State))
+					]
+				];
+			}
+		}
+
+		/** Markdown read as text: emphasis and code marks dropped. */
+		static FString Plain(FString Text)
+		{
+			Text.ReplaceInline(TEXT("**"), TEXT(""));
+			Text.ReplaceInline(TEXT("`"), TEXT(""));
+			return Text.TrimStartAndEnd();
+		}
+
+		FText StatusLine() const
+		{
+			if (!ThreadError.IsEmpty())
+			{
+				return FText::FromString(ThreadError);
+			}
+			if (!NeedsYou.IsEmpty())
+			{
+				return FText::Format(LOCTEXT("NeedsYou", "Waiting for you: {0} Continue in Studio to answer."), FText::FromString(NeedsYou));
+			}
+			if (Status == TEXT("running"))
+			{
+				return LOCTEXT("Working", "Working. Closing this leaves it running in Studio.");
+			}
+			if (Status == TEXT("stopped"))
+			{
+				return LOCTEXT("Stopped", "Stopped.");
+			}
+			return LOCTEXT("Done", "Done. Continue in Studio to follow up.");
+		}
+
+		TSharedRef<SWidget> ThreadPage()
+		{
+			return SNew(SVerticalBox)
+				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
+				[
+					SNew(STextBlock).AutoWrapText(true).ColorAndOpacity(DimColor()).Text_Lambda([this] { return FText::FromString(Asked); })
+				]
+				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
+				[
+					SAssignNew(StepsBox, SVerticalBox)
+				]
+				+ SVerticalBox::Slot().AutoHeight()
+				[
+					SNew(SBox).MaxDesiredHeight(280.0f).Visibility_Lambda([this] { return Reply.IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible; })
+					[
+						SNew(SScrollBox)
+						+ SScrollBox::Slot()
+						[
+							SNew(STextBlock).AutoWrapText(true).ColorAndOpacity(TextColor()).Text_Lambda([this] { return FText::FromString(Reply); })
+						]
+					]
+				]
+				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 6.0f)
+				[
+					SNew(STextBlock).Font(FAppStyle::GetFontStyle("SmallFont")).AutoWrapText(true)
+					.ColorAndOpacity_Lambda([this] { return !ThreadError.IsEmpty() ? FSlateColor(FStyleColors::Error) : !NeedsYou.IsEmpty() ? FSlateColor(FStyleColors::Warning) : DimColor(); })
+					.Text_Lambda([this] { return StatusLine(); })
+				]
+				+ SVerticalBox::Slot().AutoHeight()
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot().AutoWidth()
+					[
+						SNew(SButton)
+						.Text(LOCTEXT("StopThread", "Stop"))
+						.Visibility_Lambda([this] { return Status == TEXT("running") ? EVisibility::Visible : EVisibility::Collapsed; })
+						.OnClicked_Lambda([this]
+						{
+							Call(TEXT("POST"), FString::Printf(TEXT("/sessions/%s/stop"), *SessionId), [](int32, const FString&) {});
+							return FReply::Handled();
+						})
+					]
+					+ SHorizontalBox::Slot().FillWidth(1.0f)[SNew(SSpacer)]
+					+ SHorizontalBox::Slot().AutoWidth().Padding(6.0f, 0.0f, 0.0f, 0.0f)
+					[
+						SNew(SButton)
+						.ButtonStyle(&SendStyle)
+						.Text(LOCTEXT("ContinueThread", "Continue this thread"))
+						.OnClicked_Lambda([this]
+						{
+							Call(TEXT("POST"), FString::Printf(TEXT("/quick/%s/continue"), *SessionId), [](int32, const FString&)
+							{
+								FStudioDock::OpenStudio();
+								FStudioQuickAsk::Close();
+							});
+							return FReply::Handled();
+						})
+					]
+					+ SHorizontalBox::Slot().AutoWidth().Padding(6.0f, 0.0f, 0.0f, 0.0f)
+					[
+						SNew(SButton)
+						.Text(LOCTEXT("CloseThread", "Close"))
+						.OnClicked_Lambda([] { FStudioQuickAsk::Close(); return FReply::Handled(); })
+					]
+				];
+		}
+
 		FPillTheme Theme;
 		TArray<FSlateRoundedBoxBrush> PillBrushes;
 		FSlateRoundedBoxBrush ChipBrush = FSlateRoundedBoxBrush(FLinearColor::Transparent);
@@ -943,6 +1212,10 @@ void FStudioQuickAsk::Open(const TArray<FStudioQuickContext>& Context, const FSt
 			{
 				P->FocusBox();
 			}
+			return;
+		}
+		if (TSharedPtr<SPill> P = Pill.Pin(); P.IsValid() && P->IsThread())
+		{
 			return;
 		}
 		FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([](float) { FStudioQuickAsk::Close(); return false; }));
