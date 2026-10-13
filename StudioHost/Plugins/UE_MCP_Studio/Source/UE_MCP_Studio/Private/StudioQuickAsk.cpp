@@ -40,6 +40,12 @@
 #include "Widgets/SWindow.h"
 #include "Widgets/Text/STextBlock.h"
 
+#if PLATFORM_WINDOWS
+#include "Windows/AllowWindowsPlatformTypes.h"
+#include <windows.h>
+#include "Windows/HideWindowsPlatformTypes.h"
+#endif
+
 #define LOCTEXT_NAMESPACE "UE_MCP_Studio_QuickAsk"
 
 DEFINE_LOG_CATEGORY_STATIC(LogStudioQuickAsk, Log, All);
@@ -69,9 +75,12 @@ namespace StudioQuickAsk
 	FDelegateHandle ActorMenuHandle;
 	TArray<IConsoleObject*> ConsoleCommands;
 
+	/** The pill's corner radius, in Slate units. */
+	constexpr float PillRadius = 18.0f;
+
 	const FSlateBrush* PillBrush()
 	{
-		static const FSlateRoundedBoxBrush Brush(FStyleColors::Panel, 18.0f, FStyleColors::InputOutline, 1.0f);
+		static const FSlateRoundedBoxBrush Brush(FStyleColors::Panel, PillRadius, FStyleColors::InputOutline, 1.0f);
 		return &Brush;
 	}
 
@@ -230,12 +239,45 @@ namespace StudioQuickAsk
 			return FReply::Handled();
 		}
 		virtual FReply OnKeyUp(const FGeometry&, const FKeyEvent&) override { return FReply::Handled(); }
+
+		// Dragged by anything that is not the text box or Send, which take their own clicks first.
+		virtual FReply OnMouseButtonDown(const FGeometry&, const FPointerEvent& Mouse) override
+		{
+			if (Mouse.GetEffectingButton() != EKeys::LeftMouseButton || !PillWindow.IsValid())
+			{
+				return FReply::Unhandled();
+			}
+			DragOffset = Mouse.GetScreenSpacePosition() - PillWindow->GetPositionInScreen();
+			return FReply::Handled().CaptureMouse(AsShared());
+		}
+
+		virtual FReply OnMouseMove(const FGeometry&, const FPointerEvent& Mouse) override
+		{
+			if (!HasMouseCapture() || !PillWindow.IsValid())
+			{
+				return FReply::Unhandled();
+			}
+			PillWindow->MoveWindowTo(Mouse.GetScreenSpacePosition() - DragOffset);
+			return FReply::Handled();
+		}
+
+		virtual FReply OnMouseButtonUp(const FGeometry&, const FPointerEvent& Mouse) override
+		{
+			return HasMouseCapture() && Mouse.GetEffectingButton() == EKeys::LeftMouseButton ? FReply::Handled().ReleaseMouseCapture() : FReply::Unhandled();
+		}
+
+		virtual FCursorReply OnCursorQuery(const FGeometry&, const FPointerEvent&) const override
+		{
+			return FCursorReply::Cursor(HasMouseCapture() ? EMouseCursor::GrabHandClosed : EMouseCursor::GrabHand);
+		}
 		virtual FReply OnKeyChar(const FGeometry&, const FCharacterEvent&) override { return FReply::Handled(); }
 
 		bool bSending = false;
 		FText Error;
 
 	private:
+		FVector2D DragOffset = FVector2D::ZeroVector;
+
 		TSharedRef<SWidget> Chip(const FText& Text, const FText& Tooltip)
 		{
 			return SNew(SBorder)
@@ -472,6 +514,60 @@ void FStudioQuickAsk::Shutdown()
 	FStudioQuickAskCommands::Unregister();
 }
 
+namespace StudioQuickAsk
+{
+	/** Centred under the cursor, kept on the monitor's work area, in screen pixels. */
+	FVector2D PlaceAtCursor(const FVector2D& Size)
+	{
+		FSlateApplication& App = FSlateApplication::Get();
+		const FVector2D Cursor = App.GetCursorPos();
+		const float Dpi = FPlatformApplicationMisc::GetDPIScaleFactorAtPoint(Cursor.X, Cursor.Y);
+		const FSlateRect Work = App.GetWorkArea(FSlateRect(Cursor, Cursor));
+		const float Margin = 8.0f * Dpi;
+		FVector2D Pos(Cursor.X - Size.X * 0.5, Cursor.Y + 16.0 * Dpi);
+		if (Pos.Y + Size.Y > Work.Bottom - Margin)
+		{
+			Pos.Y = Cursor.Y - 16.0 * Dpi - Size.Y;
+		}
+		Pos.X = FMath::Clamp(Pos.X, Work.Left + Margin, FMath::Max(Work.Left + Margin, Work.Right - Margin - Size.X));
+		Pos.Y = FMath::Clamp(Pos.Y, Work.Top + Margin, FMath::Max(Work.Top + Margin, Work.Bottom - Margin - Size.Y));
+		return Pos;
+	}
+
+	/**
+	 * Clip the native window to the pill's rounded outline. Per-pixel transparency
+	 * is not reliable across RHIs and draws the corners black; a window region
+	 * leaves nothing there to draw. Kept in step with the window's size.
+	 */
+	void TrackShape()
+	{
+#if PLATFORM_WINDOWS
+		FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Shaped = FIntPoint(0, 0)](float) mutable
+		{
+			if (!PillWindow.IsValid())
+			{
+				return false;
+			}
+			const TSharedPtr<FGenericWindow> Native = PillWindow->GetNativeWindow();
+			HWND Hwnd = Native.IsValid() ? static_cast<HWND>(Native->GetOSWindowHandle()) : nullptr;
+			RECT R;
+			if (!Hwnd || !::GetWindowRect(Hwnd, &R))
+			{
+				return true;
+			}
+			const FIntPoint Size(R.right - R.left, R.bottom - R.top);
+			if (Size != Shaped && Size.X > 0 && Size.Y > 0)
+			{
+				Shaped = Size;
+				const int32 D = FMath::RoundToInt(2.0f * PillRadius * Native->GetDPIScaleFactor());
+				::SetWindowRgn(Hwnd, ::CreateRoundRectRgn(0, 0, Size.X + 1, Size.Y + 1, D, D), 1);
+			}
+			return true;
+		}));
+#endif
+	}
+}
+
 void FStudioQuickAsk::Open(const TArray<FStudioQuickContext>& Context, const FString& Text)
 {
 	using namespace StudioQuickAsk;
@@ -487,6 +583,7 @@ void FStudioQuickAsk::Open(const TArray<FStudioQuickContext>& Context, const FSt
 		{
 			Existing->SetText(Text);
 		}
+		PillWindow->MoveWindowTo(PlaceAtCursor(PillWindow->GetSizeInScreen()));
 		PillWindow->BringToFront();
 		Existing->FocusBox();
 		return;
@@ -496,18 +593,8 @@ void FStudioQuickAsk::Open(const TArray<FStudioQuickContext>& Context, const FSt
 	TSharedRef<SPill> Widget = SNew(SPill).Context(Context).Text(Text);
 	Widget->SlatePrepass(App.GetApplicationScale());
 	const FVector2D Cursor = App.GetCursorPos();
-	const float Dpi = FPlatformApplicationMisc::GetDPIScaleFactorAtPoint(Cursor.X, Cursor.Y);
-	const FVector2D Size = Widget->GetDesiredSize() * Dpi;
-	// Centred under the cursor, kept on the monitor's work area.
-	const FSlateRect Work = App.GetWorkArea(FSlateRect(Cursor, Cursor));
-	const float Margin = 8.0f * Dpi;
-	FVector2D Pos(Cursor.X - Size.X * 0.5, Cursor.Y + 16.0 * Dpi);
-	if (Pos.Y + Size.Y > Work.Bottom - Margin)
-	{
-		Pos.Y = Cursor.Y - 16.0 * Dpi - Size.Y;
-	}
-	Pos.X = FMath::Clamp(Pos.X, Work.Left + Margin, FMath::Max(Work.Left + Margin, Work.Right - Margin - Size.X));
-	Pos.Y = FMath::Clamp(Pos.Y, Work.Top + Margin, FMath::Max(Work.Top + Margin, Work.Bottom - Margin - Size.Y));
+	const FVector2D Size = Widget->GetDesiredSize() * FPlatformApplicationMisc::GetDPIScaleFactorAtPoint(Cursor.X, Cursor.Y);
+	const FVector2D Pos = PlaceAtCursor(Size);
 
 	TSharedRef<SWindow> Window = SNew(SWindow)
 		.Type(EWindowType::Menu)
@@ -522,6 +609,8 @@ void FStudioQuickAsk::Open(const TArray<FStudioQuickContext>& Context, const FSt
 		.ActivationPolicy(EWindowActivationPolicy::Always)
 		.FocusWhenFirstShown(true)
 		.ScreenPosition(Pos)
+		// Pos is already in screen pixels; Slate would scale it by the DPI again and miss the cursor.
+		.AdjustInitialSizeAndPositionForDPIScale(false)
 		[
 			Widget
 		];
@@ -561,6 +650,7 @@ void FStudioQuickAsk::Open(const TArray<FStudioQuickContext>& Context, const FSt
 	}
 	Window->BringToFront(true);
 	Widget->FocusBox();
+	TrackShape();
 }
 
 bool FStudioQuickAsk::SendOpen()
