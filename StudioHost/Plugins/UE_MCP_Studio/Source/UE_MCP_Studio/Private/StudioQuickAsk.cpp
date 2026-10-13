@@ -687,6 +687,8 @@ void FStudioQuickAsk::Open(const TArray<FStudioQuickContext>& Context, const FSt
 		.SupportsTransparency(EWindowTransparency::PerPixel)
 		.ActivationPolicy(EWindowActivationPolicy::Always)
 		.FocusWhenFirstShown(true)
+		// Slate centres a new window on the work area unless told not to, whatever ScreenPosition says.
+		.AutoCenter(EAutoCenter::None)
 		.ScreenPosition(Pos)
 		// Pos is already in screen pixels; Slate would scale it by the DPI again and miss the cursor.
 		.AdjustInitialSizeAndPositionForDPIScale(false)
@@ -727,9 +729,11 @@ void FStudioQuickAsk::Open(const TArray<FStudioQuickContext>& Context, const FSt
 	{
 		App.AddWindow(Window, true);
 	}
+	Window->MoveWindowTo(Pos);
 	Window->BringToFront(true);
 	Widget->FocusBox();
 	TrackShape();
+	UE_LOG(LogStudioQuickAsk, Log, TEXT("pill at %.0f,%.0f for cursor %.0f,%.0f"), Pos.X, Pos.Y, Cursor.X, Cursor.Y);
 }
 
 bool FStudioQuickAsk::SendOpen()
