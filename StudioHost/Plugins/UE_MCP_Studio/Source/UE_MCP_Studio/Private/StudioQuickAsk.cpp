@@ -25,6 +25,10 @@
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
 #include "LevelEditor.h"
+#include "LevelEditorViewport.h"
+#include "SceneView.h"
+#include "SLevelViewport.h"
+#include "Widgets/SViewport.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -92,6 +96,10 @@ namespace StudioQuickAsk
 
 	FText ChipText(const FStudioQuickContext& C)
 	{
+		if (C.Kind == TEXT("location"))
+		{
+			return C.Label.IsEmpty() ? LOCTEXT("HereChip", "Here") : FText::Format(LOCTEXT("HereOnChip", "Here, on {0}"), FText::FromString(C.Label));
+		}
 		return C.Class.IsEmpty() || C.Kind == TEXT("asset")
 			? FText::FromString(C.Label)
 			: FText::Format(LOCTEXT("ActorChip", "{0} ({1})"), FText::FromString(C.Label), FText::FromString(C.Class));
@@ -217,6 +225,10 @@ namespace StudioQuickAsk
 				{
 					Message = LOCTEXT("TooOld", "This Studio has no quick ask. Update Studio to 0.1.2-beta.12 or later.");
 				}
+				else if (Code == 400 && Message.ToString().Contains(TEXT("context kind")))
+				{
+					Message = LOCTEXT("NoLocation", "This Studio does not take the point under the cursor. Update Studio to 0.1.2-beta.19 or later.");
+				}
 				UE_LOG(LogStudioQuickAsk, Warning, TEXT("quick ask answered %d: %s"), Code, *Message.ToString());
 				if (TSharedPtr<SPill> P = Weak.Pin())
 				{
@@ -321,7 +333,8 @@ namespace StudioQuickAsk
 		}));
 	}
 
-	bool IsOverLevelViewport(FSlateApplication& App, const FVector2D& Screen)
+	/** The level viewport under a screen point, if there is one. */
+	TSharedPtr<SLevelViewport> LevelViewportAt(FSlateApplication& App, const FVector2D& Screen)
 	{
 		const FWidgetPath Path = App.LocateWindowUnderMouse(Screen, App.GetInteractiveTopLevelWindows());
 		static const FName LevelViewport(TEXT("SLevelViewport"));
@@ -329,10 +342,76 @@ namespace StudioQuickAsk
 		{
 			if (Path.Widgets[i].Widget->GetType() == LevelViewport)
 			{
-				return true;
+				return StaticCastSharedRef<SLevelViewport>(Path.Widgets[i].Widget);
 			}
 		}
-		return false;
+		return nullptr;
+	}
+
+	/**
+	 * The world point under the cursor in a level viewport, as a "location" item:
+	 * the hit point and surface normal, the actor hit and the map. A trace that
+	 * hits nothing gives no item, rather than a point in the air.
+	 */
+	bool PointUnderCursor(FSlateApplication& App, const FVector2D& Screen, FStudioQuickContext& Out)
+	{
+		const TSharedPtr<SLevelViewport> Level = LevelViewportAt(App, Screen);
+		if (!Level.IsValid())
+		{
+			return false;
+		}
+		FLevelEditorViewportClient& Client = Level->GetLevelViewportClient();
+		const TSharedPtr<SViewport> Widget = Level->GetViewportWidget().Pin();
+		UWorld* World = Client.GetWorld();
+		if (!Client.Viewport || !Widget.IsValid() || !World)
+		{
+			return false;
+		}
+		const FGeometry& Geometry = Widget->GetTickSpaceGeometry();
+		const FVector2D Local = Geometry.AbsoluteToLocal(Screen);
+		const FVector2D LocalSize = Geometry.GetLocalSize();
+		const FIntPoint Pixels = Client.Viewport->GetSizeXY();
+		if (LocalSize.X <= 0 || LocalSize.Y <= 0 || Local.X < 0 || Local.Y < 0 || Local.X > LocalSize.X || Local.Y > LocalSize.Y)
+		{
+			return false;
+		}
+		const FVector2D Pixel(Local.X / LocalSize.X * Pixels.X, Local.Y / LocalSize.Y * Pixels.Y);
+		FSceneViewFamilyContext Family(FSceneViewFamily::ConstructionValues(Client.Viewport, Client.GetScene(), Client.EngineShowFlags).SetRealtimeUpdate(true));
+		const FSceneView* View = Client.CalcSceneView(&Family);
+		if (!View)
+		{
+			return false;
+		}
+		FVector Origin, Direction;
+		View->DeprojectFVector2D(Pixel, Origin, Direction);
+		FHitResult Hit;
+		const FCollisionQueryParams Query(SCENE_QUERY_STAT(StudioQuickAsk), true);
+		if (!World->LineTraceSingleByChannel(Hit, Origin, Origin + Direction * HALF_WORLD_MAX, ECC_Visibility, Query))
+		{
+			return false;
+		}
+		Out.Kind = TEXT("location");
+		Out.Path = FString::Printf(TEXT("X=%.1f Y=%.1f Z=%.1f, surface normal X=%.2f Y=%.2f Z=%.2f"),
+			Hit.ImpactPoint.X, Hit.ImpactPoint.Y, Hit.ImpactPoint.Z, Hit.ImpactNormal.X, Hit.ImpactNormal.Y, Hit.ImpactNormal.Z);
+		Out.Label = Hit.GetActor() ? Hit.GetActor()->GetActorLabel() : FString();
+		Out.Class = World->GetOutermost()->GetName();
+		return true;
+	}
+
+	/** What a hotkey or gesture over the level viewport carries: the point under the cursor, then any selected actors. */
+	TArray<FStudioQuickContext> ViewportContext(FSlateApplication& App, const FVector2D& Screen, bool bSelection)
+	{
+		TArray<FStudioQuickContext> Out;
+		FStudioQuickContext Point;
+		if (PointUnderCursor(App, Screen, Point))
+		{
+			Out.Add(Point);
+		}
+		if (bSelection && LevelViewportAt(App, Screen).IsValid())
+		{
+			Out.Append(FStudioQuickAsk::ContextOfSelectedActors());
+		}
+		return Out;
 	}
 
 	/**
@@ -354,7 +433,7 @@ namespace StudioQuickAsk
 			}
 			if (!Key.IsRepeat())
 			{
-				OpenSoon({});
+				OpenSoon(ViewportContext(FSlateApplication::Get(), FSlateApplication::Get().GetCursorPos(), false));
 			}
 			return true;
 		}
@@ -366,7 +445,7 @@ namespace StudioQuickAsk
 				return false;
 			}
 			bSwallowUp = true;
-			OpenSoon(IsOverLevelViewport(App, Mouse.GetScreenSpacePosition()) ? FStudioQuickAsk::ContextOfSelectedActors() : TArray<FStudioQuickContext>());
+			OpenSoon(ViewportContext(App, Mouse.GetScreenSpacePosition(), true));
 			return true;
 		}
 
