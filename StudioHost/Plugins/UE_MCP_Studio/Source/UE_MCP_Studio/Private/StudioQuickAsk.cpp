@@ -82,10 +82,25 @@ namespace StudioQuickAsk
 	/** The pill's corner radius, in Slate units. */
 	constexpr float PillRadius = 18.0f;
 
+	/** The corner nearest the cursor, square so the pill points at what it is about: 0 top left, 1 top right, 2 bottom right, 3 bottom left. */
+	int32 PointCorner = 0;
+
+	FVector4 PillRadii(int32 Square)
+	{
+		FVector4 R(PillRadius, PillRadius, PillRadius, PillRadius);
+		R[Square] = 0.0f;
+		return R;
+	}
+
 	const FSlateBrush* PillBrush()
 	{
-		static const FSlateRoundedBoxBrush Brush(FStyleColors::Panel, PillRadius, FStyleColors::InputOutline, 1.0f);
-		return &Brush;
+		static const FSlateRoundedBoxBrush Brushes[4] = {
+			FSlateRoundedBoxBrush(FStyleColors::Panel, PillRadii(0), FStyleColors::InputOutline, 1.0f),
+			FSlateRoundedBoxBrush(FStyleColors::Panel, PillRadii(1), FStyleColors::InputOutline, 1.0f),
+			FSlateRoundedBoxBrush(FStyleColors::Panel, PillRadii(2), FStyleColors::InputOutline, 1.0f),
+			FSlateRoundedBoxBrush(FStyleColors::Panel, PillRadii(3), FStyleColors::InputOutline, 1.0f),
+		};
+		return &Brushes[PointCorner & 3];
 	}
 
 	const FSlateBrush* ChipBrush()
@@ -130,7 +145,7 @@ namespace StudioQuickAsk
 			ChildSlot
 			[
 				SNew(SBorder)
-				.BorderImage(PillBrush())
+				.BorderImage_Lambda([] { return PillBrush(); })
 				.Padding(FMargin(14.0f, 8.0f, 8.0f, 6.0f))
 				[
 					SNew(SBox)
@@ -595,7 +610,10 @@ void FStudioQuickAsk::Shutdown()
 
 namespace StudioQuickAsk
 {
-	/** Centred under the cursor, kept on the monitor's work area, in screen pixels. */
+	/**
+	 * Top-left corner just below and right of the cursor, like a tooltip; flipped
+	 * to the cursor's other side where the monitor's work area runs out. Screen pixels.
+	 */
 	FVector2D PlaceAtCursor(const FVector2D& Size)
 	{
 		FSlateApplication& App = FSlateApplication::Get();
@@ -603,11 +621,19 @@ namespace StudioQuickAsk
 		const float Dpi = FPlatformApplicationMisc::GetDPIScaleFactorAtPoint(Cursor.X, Cursor.Y);
 		const FSlateRect Work = App.GetWorkArea(FSlateRect(Cursor, Cursor));
 		const float Margin = 8.0f * Dpi;
-		FVector2D Pos(Cursor.X - Size.X * 0.5, Cursor.Y + 16.0 * Dpi);
-		if (Pos.Y + Size.Y > Work.Bottom - Margin)
+		const FVector2D Offset(12.0 * Dpi, 16.0 * Dpi);
+		FVector2D Pos = Cursor + Offset;
+		const bool bLeft = Pos.X + Size.X > Work.Right - Margin;
+		const bool bAbove = Pos.Y + Size.Y > Work.Bottom - Margin;
+		if (bLeft)
 		{
-			Pos.Y = Cursor.Y - 16.0 * Dpi - Size.Y;
+			Pos.X = Cursor.X - Offset.X - Size.X;
 		}
+		if (bAbove)
+		{
+			Pos.Y = Cursor.Y - Offset.Y - Size.Y;
+		}
+		PointCorner = bAbove ? (bLeft ? 2 : 3) : (bLeft ? 1 : 0);
 		Pos.X = FMath::Clamp(Pos.X, Work.Left + Margin, FMath::Max(Work.Left + Margin, Work.Right - Margin - Size.X));
 		Pos.Y = FMath::Clamp(Pos.Y, Work.Top + Margin, FMath::Max(Work.Top + Margin, Work.Bottom - Margin - Size.Y));
 		return Pos;
@@ -616,12 +642,12 @@ namespace StudioQuickAsk
 	/**
 	 * Clip the native window to the pill's rounded outline. Per-pixel transparency
 	 * is not reliable across RHIs and draws the corners black; a window region
-	 * leaves nothing there to draw. Kept in step with the window's size.
+	 * leaves nothing there to draw. Kept in step with the window's size and the corner it points from.
 	 */
 	void TrackShape()
 	{
 #if PLATFORM_WINDOWS
-		FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Shaped = FIntPoint(0, 0)](float) mutable
+		FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Shaped = FIntPoint(0, 0), ShapedCorner = -1](float) mutable
 		{
 			if (!PillWindow.IsValid())
 			{
@@ -635,11 +661,21 @@ namespace StudioQuickAsk
 				return true;
 			}
 			const FIntPoint Size(R.right - R.left, R.bottom - R.top);
-			if (Size != Shaped && Size.X > 0 && Size.Y > 0)
+			if ((Size != Shaped || PointCorner != ShapedCorner) && Size.X > 0 && Size.Y > 0)
 			{
 				Shaped = Size;
+				ShapedCorner = PointCorner;
 				const int32 D = FMath::RoundToInt(2.0f * PillRadius * Native->GetDPIScaleFactor());
-				::SetWindowRgn(Hwnd, ::CreateRoundRectRgn(0, 0, Size.X + 1, Size.Y + 1, D, D), 1);
+				// Rounded everywhere, then the corner that points at the subject filled back in square.
+				HRGN Shape = ::CreateRoundRectRgn(0, 0, Size.X + 1, Size.Y + 1, D, D);
+				const int32 Half = D / 2 + 1;
+				const int32 Corner = PointCorner & 3;
+				const int32 X = Corner == 1 || Corner == 2 ? Size.X - Half : 0;
+				const int32 Y = Corner >= 2 ? Size.Y - Half : 0;
+				HRGN Square = ::CreateRectRgn(X, Y, X + Half, Y + Half);
+				::CombineRgn(Shape, Shape, Square, RGN_OR);
+				::DeleteObject(Square);
+				::SetWindowRgn(Hwnd, Shape, 1);
 			}
 			return true;
 		}));
