@@ -6,6 +6,7 @@
 #include "StudioDocs.h"
 #include "StudioDaemon.h"
 #include "StudioDock.h"
+#include "StudioQuickAsk.h"
 #include "StudioWindow.h"
 #include "Styling/AppStyle.h"
 #include "ToolMenus.h"
@@ -25,6 +26,8 @@ public:
 		FStudioDocs::Register();
 		// The "UE-MCP Studio" tab: Studio's window sits over it, and it shows the setup page until Studio can run.
 		FStudioDock::Startup();
+		// Ask Studio: the hotkey, Ctrl+Alt+right-click and "Chat about this" on actors and assets.
+		FStudioQuickAsk::Startup();
 
 		UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FStudioModule::RegisterMenus));
 
@@ -47,6 +50,7 @@ public:
 			IConsoleManager::Get().UnregisterConsoleObject(OpenCommand);
 			OpenCommand = nullptr;
 		}
+		FStudioQuickAsk::Shutdown();
 		FStudioDocs::Unregister();
 		FStudioDock::Shutdown();
 		FStudioWindow::Shutdown();

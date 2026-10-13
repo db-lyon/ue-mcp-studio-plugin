@@ -23,6 +23,9 @@ public class UE_MCP_Studio : ModuleRules
 			"Projects",
 			"Json",
 			"HTTP",
+			"InputCore",
+			"ApplicationCore",
+			"ContentBrowser",
 		});
 	}
 }
