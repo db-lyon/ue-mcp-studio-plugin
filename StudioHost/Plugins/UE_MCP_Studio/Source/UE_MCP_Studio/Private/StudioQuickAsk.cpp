@@ -451,6 +451,17 @@ namespace StudioQuickAsk
 		FString NeedsYou;
 		FString ThreadError;
 		bool bPolling = false;
+		struct FStep
+		{
+			FString Label;
+			FString State;
+		};
+		/** The steps /quick listed, newest last, and how many came before them. */
+		TArray<FStep> Steps;
+		int32 Earlier = 0;
+		/** Every main-thread call's label from the transcript, oldest first; empty where it has no rule. */
+		TArray<FString> Labels;
+		bool bFetchingLabels = false;
 		FTSTicker::FDelegateHandle PollHandle;
 		TSharedPtr<SWidgetSwitcher> Pages;
 		TSharedPtr<SVerticalBox> StepsBox;
@@ -525,7 +536,58 @@ namespace StudioQuickAsk
 			Reply = FStudioQuickAsk::TablesAsRows(T.TryGetStringField(TEXT("replyMarkup"), Text) ? Text : T.TryGetStringField(TEXT("reply"), Text) ? Escaped(Plain(Text)) : FString());
 			NeedsYou = T.TryGetStringField(TEXT("needsYou"), Text) ? Text : FString();
 			ThreadError = T.TryGetStringField(TEXT("error"), Text) ? Text : FString();
-			const int32 Earlier = T.HasTypedField<EJson::Number>(TEXT("earlier")) ? static_cast<int32>(T.GetNumberField(TEXT("earlier"))) : 0;
+			Earlier = T.HasTypedField<EJson::Number>(TEXT("earlier")) ? static_cast<int32>(T.GetNumberField(TEXT("earlier"))) : 0;
+			Steps.Reset();
+			const TArray<TSharedPtr<FJsonValue>>* StepValues = nullptr;
+			if (T.TryGetArrayField(TEXT("steps"), StepValues))
+			{
+				for (const TSharedPtr<FJsonValue>& V : *StepValues)
+				{
+					const TSharedPtr<FJsonObject>* Step = nullptr;
+					if (V.IsValid() && V->TryGetObject(Step))
+					{
+						Steps.Add({ (*Step)->GetStringField(TEXT("label")), (*Step)->GetStringField(TEXT("state")) });
+					}
+				}
+			}
+			ShowSteps();
+			if (Earlier + Steps.Num() > Labels.Num())
+			{
+				FetchLabels();
+			}
+		}
+
+		/**
+		 * Studio's /quick names ue-mcp calls other than "call" by the tool alone ("ue_mcp"). The
+		 * session's transcript has each call's input, so the pill labels them as the panel does;
+		 * it is fetched again only when a step appears that has no label yet.
+		 */
+		void FetchLabels()
+		{
+			if (bFetchingLabels)
+			{
+				return;
+			}
+			bFetchingLabels = true;
+			TWeakPtr<SPill> Weak = StaticCastSharedRef<SPill>(AsShared());
+			Call(TEXT("GET"), TEXT("/sessions/") + SessionId, [Weak](int32 Code, const FString& Body)
+			{
+				TSharedPtr<SPill> P = Weak.Pin();
+				if (!P.IsValid())
+				{
+					return;
+				}
+				P->bFetchingLabels = false;
+				if (Code == 200)
+				{
+					P->Labels = FStudioQuickAsk::MainStepLabels(Body);
+					P->ShowSteps();
+				}
+			});
+		}
+
+		void ShowSteps()
+		{
 			StepsBox->ClearChildren();
 			if (Earlier > 0)
 			{
@@ -535,19 +597,13 @@ namespace StudioQuickAsk
 					.Text(FText::Format(LOCTEXT("EarlierSteps", "{0} earlier steps"), FText::AsNumber(Earlier)))
 				];
 			}
-			const TArray<TSharedPtr<FJsonValue>>* Steps = nullptr;
-			if (!T.TryGetArrayField(TEXT("steps"), Steps))
+			// The transcript's calls line up with the steps only when it holds every one of them.
+			const bool bLabelled = Labels.Num() == Earlier + Steps.Num();
+			for (int32 i = 0; i < Steps.Num(); ++i)
 			{
-				return;
-			}
-			for (const TSharedPtr<FJsonValue>& V : *Steps)
-			{
-				const TSharedPtr<FJsonObject>* Step = nullptr;
-				if (!V->TryGetObject(Step))
-				{
-					continue;
-				}
-				const FString State = (*Step)->GetStringField(TEXT("state"));
+				const FString& State = Steps[i].State;
+				const FString Own = bLabelled ? Labels[Earlier + i] : FString();
+				const FString& Label = Own.IsEmpty() ? Steps[i].Label : Own;
 				const FSlateColor StateColor = State == TEXT("failed") ? FSlateColor(FStyleColors::Error)
 					: State == TEXT("running") ? (Theme.bEditor ? FSlateColor(FStyleColors::Primary) : FSlateColor(Theme.Accent))
 					: DimColor();
@@ -556,7 +612,7 @@ namespace StudioQuickAsk
 					SNew(SHorizontalBox)
 					+ SHorizontalBox::Slot().AutoWidth()
 					[
-						SNew(STextBlock).Font(FAppStyle::GetFontStyle("SmallFont")).ColorAndOpacity(TextColor()).Text(FText::FromString((*Step)->GetStringField(TEXT("label"))))
+						SNew(STextBlock).Font(FAppStyle::GetFontStyle("SmallFont")).ColorAndOpacity(TextColor()).Text(FText::FromString(Label))
 					]
 					+ SHorizontalBox::Slot().AutoWidth().Padding(8.0f, 0.0f, 0.0f, 0.0f)
 					[
@@ -1443,6 +1499,103 @@ FString FStudioQuickAsk::TablesAsRows(const FString& Markup)
 		--i;
 	}
 	return FString::Join(Out, TEXT("\n"));
+}
+
+FString FStudioQuickAsk::StepLabel(const FString& Name, const FJsonObject& Input)
+{
+	auto Str = [&Input](const TCHAR* Key)
+	{
+		FString V;
+		Input.TryGetStringField(Key, V);
+		return V;
+	};
+	auto Num = [&Input](const TCHAR* Key)
+	{
+		double V = 0.0;
+		return Input.TryGetNumberField(Key, V) ? static_cast<int64>(V) : int64(0);
+	};
+	const FString Path = Str(TEXT("path"));
+	const FString In = Path.IsEmpty() ? FString() : TEXT(" in ") + Path;
+	if (Name == TEXT("editor_restart"))
+	{
+		return TEXT("editor ") + Str(TEXT("operation"));
+	}
+	if (Name == TEXT("shell"))
+	{
+		TArray<FString> Lines;
+		Str(TEXT("command")).TrimStartAndEnd().Replace(TEXT("\r"), TEXT("")).ParseIntoArray(Lines, TEXT("\n"), false);
+		return Lines.Num() > 1 ? FString::Printf(TEXT("%s (+%d lines)"), *Lines[0], Lines.Num() - 1) : Lines.Num() ? Lines[0] : FString();
+	}
+	if (Name == TEXT("read_file"))
+	{
+		return Num(TEXT("offset")) || Num(TEXT("limit")) ? FString::Printf(TEXT("%s (from line %lld)"), *Path, Num(TEXT("offset")) ? Num(TEXT("offset")) : int64(1)) : Path;
+	}
+	if (Name == TEXT("write_file") || Name == TEXT("edit_file"))
+	{
+		return Path;
+	}
+	if (Name == TEXT("glob"))
+	{
+		return Str(TEXT("pattern")) + In;
+	}
+	if (Name == TEXT("grep"))
+	{
+		const FString Glob = Str(TEXT("glob"));
+		return TEXT("/") + Str(TEXT("pattern")) + TEXT("/") + (Glob.IsEmpty() ? FString() : TEXT(" ") + Glob) + In;
+	}
+	if (Name == TEXT("web_fetch"))
+	{
+		return Str(TEXT("url"));
+	}
+	if (Name == TEXT("web_search"))
+	{
+		return TEXT("\"") + Str(TEXT("query")) + TEXT("\"");
+	}
+	// The ue-mcp gateway: an action, then what it names.
+	const FString Action = Str(TEXT("action"));
+	if (Action.IsEmpty())
+	{
+		return FString();
+	}
+	const FString Category = Str(TEXT("category"));
+	const FString Method = Str(TEXT("method"));
+	if (Action == TEXT("call"))
+	{
+		return Category + TEXT(".") + Method;
+	}
+	if (Action == TEXT("search"))
+	{
+		return TEXT("search \"") + Str(TEXT("query")) + TEXT("\"");
+	}
+	return TEXT("describe ") + Category + (Method.IsEmpty() ? FString() : TEXT(".") + Method);
+}
+
+TArray<FString> FStudioQuickAsk::MainStepLabels(const FString& SessionBody)
+{
+	TArray<FString> Labels;
+	TSharedPtr<FJsonObject> Session;
+	const TArray<TSharedPtr<FJsonValue>>* Transcript = nullptr;
+	if (!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(SessionBody), Session) || !Session.IsValid() || !Session->TryGetArrayField(TEXT("transcript"), Transcript))
+	{
+		return Labels;
+	}
+	for (const TSharedPtr<FJsonValue>& V : *Transcript)
+	{
+		const TSharedPtr<FJsonObject>* Entry = nullptr;
+		FString Kind, Parent;
+		// A subagent's entries name the agent call that ran them; the pill counts the main thread's only.
+		if (!V.IsValid() || !V->TryGetObject(Entry) || !(*Entry)->TryGetStringField(TEXT("kind"), Kind) || Kind != TEXT("tool")
+			|| ((*Entry)->TryGetStringField(TEXT("parent"), Parent) && !Parent.IsEmpty()))
+		{
+			continue;
+		}
+		const TSharedPtr<FJsonObject>* Call = nullptr;
+		const TSharedPtr<FJsonObject>* Input = nullptr;
+		FString Name;
+		const bool bCall = (*Entry)->TryGetObjectField(TEXT("call"), Call) && (*Call)->TryGetStringField(TEXT("name"), Name);
+		Labels.Add(bCall && (*Call)->TryGetObjectField(TEXT("input"), Input) ? StepLabel(Name, **Input) : FString());
+	}
+	return Labels;
 }
 
 #undef LOCTEXT_NAMESPACE

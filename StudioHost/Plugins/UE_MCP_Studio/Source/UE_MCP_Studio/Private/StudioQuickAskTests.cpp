@@ -1,6 +1,9 @@
 // Copyright 2026 ue-mcp. All Rights Reserved.
 
 #include "StudioQuickAsk.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 #include "Framework/Commands/InputBindingManager.h"
 #include "Misc/AutomationTest.h"
 
@@ -60,6 +63,42 @@ bool FStudioQuickAskTablesTest::RunTest(const FString&)
 	TestEqual(TEXT("no outer pipes, escaped pipe, marked-up header"),
 		FStudioQuickAsk::TablesAsRows(TEXT("<b>Key</> | Value\n--- | ---\nA | x \\| y")),
 		Bullet + TEXT("<b>Key</>: A\n    <b>Value</>: x | y"));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStudioQuickAskStepLabelsTest, "UE.Studio.QuickAsk.StepLabels",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FStudioQuickAskStepLabelsTest::RunTest(const FString&)
+{
+	auto Label = [](const FString& Name, const FString& Input)
+	{
+		TSharedPtr<FJsonObject> Object;
+		if (!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Input), Object) || !Object.IsValid())
+		{
+			Object = MakeShared<FJsonObject>();
+		}
+		return FStudioQuickAsk::StepLabel(Name, *Object);
+	};
+	TestEqual(TEXT("ue-mcp call"), Label(TEXT("ue_mcp"), TEXT("{\"action\":\"call\",\"category\":\"level\",\"method\":\"get_component_tree\",\"args\":{}}")), FString(TEXT("level.get_component_tree")));
+	TestEqual(TEXT("ue-mcp search"), Label(TEXT("ue_mcp"), TEXT("{\"action\":\"search\",\"query\":\"material inputs\"}")), FString(TEXT("search \"material inputs\"")));
+	TestEqual(TEXT("ue-mcp describe"), Label(TEXT("ue_mcp"), TEXT("{\"action\":\"describe\",\"category\":\"pcg\"}")), FString(TEXT("describe pcg")));
+	TestEqual(TEXT("ue-mcp describe one action"), Label(TEXT("ue_mcp"), TEXT("{\"action\":\"describe\",\"category\":\"pcg\",\"method\":\"export_graph\"}")), FString(TEXT("describe pcg.export_graph")));
+	TestEqual(TEXT("shell"), Label(TEXT("shell"), TEXT("{\"command\":\"git status\\ngit log\"}")), FString(TEXT("git status (+1 lines)")));
+	TestEqual(TEXT("read part of a file"), Label(TEXT("read_file"), TEXT("{\"path\":\"a.txt\",\"limit\":20}")), FString(TEXT("a.txt (from line 1)")));
+	TestEqual(TEXT("grep"), Label(TEXT("grep"), TEXT("{\"pattern\":\"Tick\",\"glob\":\"*.cpp\",\"path\":\"Source\"}")), FString(TEXT("/Tick/ *.cpp in Source")));
+	TestEqual(TEXT("web search"), Label(TEXT("web_search"), TEXT("{\"query\":\"nanite\"}")), FString(TEXT("\"nanite\"")));
+	TestEqual(TEXT("no rule keeps Studio's label"), Label(TEXT("agent"), TEXT("{\"description\":\"x\"}")), FString());
+
+	const TArray<FString> Main = FStudioQuickAsk::MainStepLabels(TEXT(
+		"{\"id\":\"s\",\"transcript\":["
+		"{\"kind\":\"user\",\"text\":\"why\",\"at\":\"t\"},"
+		"{\"kind\":\"tool\",\"call\":{\"id\":\"1\",\"name\":\"ue_mcp\",\"input\":{\"action\":\"search\",\"query\":\"emissive\"},\"outcome\":\"done\"}},"
+		"{\"kind\":\"tool\",\"parent\":\"9\",\"call\":{\"id\":\"2\",\"name\":\"ue_mcp\",\"input\":{\"action\":\"call\",\"category\":\"asset\",\"method\":\"list\"},\"outcome\":\"done\"}},"
+		"{\"kind\":\"tool\",\"call\":{\"id\":\"3\",\"name\":\"ue_mcp\",\"input\":{\"action\":\"call\",\"category\":\"material\",\"method\":\"export_graph\"},\"outcome\":\"pending\"}},"
+		"{\"kind\":\"assistant\",\"text\":\"done\",\"at\":\"t\"}]}"));
+	TestEqual(TEXT("main thread's calls only"), FString::Join(Main, TEXT(" | ")), FString(TEXT("search \"emissive\" | material.export_graph")));
+	TestEqual(TEXT("not a session"), FStudioQuickAsk::MainStepLabels(TEXT("nope")).Num(), 0);
 	return true;
 }
 

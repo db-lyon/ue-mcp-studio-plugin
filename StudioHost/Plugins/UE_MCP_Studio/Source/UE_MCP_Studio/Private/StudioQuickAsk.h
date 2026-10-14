@@ -6,6 +6,7 @@
 #include "Framework/Commands/Commands.h"
 
 class AActor;
+class FJsonObject;
 struct FAssetData;
 
 /** What a quick ask is about, as POST /v1/ext/studio/quick takes it: an actor, asset, location, graph node or graph. */
@@ -58,4 +59,14 @@ public:
 
 	/** Reply markup with its markdown tables as rows of "Header: value" lines, which rich text can lay out; separator rows dropped. */
 	static FString TablesAsRows(const FString& Markup);
+
+	/**
+	 * A tool call as the Studio panel labels it (client-web's toolLabel): ue-mcp calls by
+	 * category.method or search "query", files by path, commands by their first line.
+	 * Empty for a call it has no rule for, which keeps the label Studio sent.
+	 */
+	static FString StepLabel(const FString& Name, const FJsonObject& Input);
+
+	/** The labels of the main thread's tool calls, oldest first, from a GET /sessions/:id body; the calls the pill's steps count. */
+	static TArray<FString> MainStepLabels(const FString& SessionBody);
 };
