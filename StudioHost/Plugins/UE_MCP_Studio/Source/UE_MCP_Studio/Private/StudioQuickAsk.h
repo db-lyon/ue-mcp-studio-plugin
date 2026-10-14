@@ -55,4 +55,7 @@ public:
 
 	/** The request body for POST /quick. */
 	static FString RequestBody(const FString& Text, const TArray<FStudioQuickContext>& Context);
+
+	/** Reply markup with its markdown tables as rows of "Header: value" lines, which rich text can lay out; separator rows dropped. */
+	static FString TablesAsRows(const FString& Markup);
 };

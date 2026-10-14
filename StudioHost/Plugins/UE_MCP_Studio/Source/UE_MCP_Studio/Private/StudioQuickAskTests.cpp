@@ -47,4 +47,20 @@ bool FStudioQuickAskBodyTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStudioQuickAskTablesTest, "UE.Studio.QuickAsk.TablesAsRows",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FStudioQuickAskTablesTest::RunTest(const FString&)
+{
+	const FString Bullet = TEXT("•  ");
+	TestEqual(TEXT("no table"), FStudioQuickAsk::TablesAsRows(TEXT("a | b\nplain")), FString(TEXT("a | b\nplain")));
+	TestEqual(TEXT("table"),
+		FStudioQuickAsk::TablesAsRows(TEXT("Lights:\n\n| Name | Intensity |\n|:---|---:|\n| Sun | 10 lux |\n| <c>Fill</> | |\n\nDone.")),
+		FString(TEXT("Lights:\n\n")) + Bullet + TEXT("<b>Name</>: Sun\n    <b>Intensity</>: 10 lux\n") + Bullet + TEXT("<b>Name</>: <c>Fill</>\n\nDone."));
+	TestEqual(TEXT("no outer pipes, escaped pipe, marked-up header"),
+		FStudioQuickAsk::TablesAsRows(TEXT("<b>Key</> | Value\n--- | ---\nA | x \\| y")),
+		Bullet + TEXT("<b>Key</>: A\n    <b>Value</>: x | y"));
+	return true;
+}
+
 #endif

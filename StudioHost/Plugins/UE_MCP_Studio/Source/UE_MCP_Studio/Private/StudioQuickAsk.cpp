@@ -522,7 +522,7 @@ namespace StudioQuickAsk
 			T.TryGetStringField(TEXT("status"), Status);
 			FString Text;
 			// Studio lays the reply out as rich text; an older Studio sends only the markdown.
-			Reply = T.TryGetStringField(TEXT("replyMarkup"), Text) ? Text : T.TryGetStringField(TEXT("reply"), Text) ? Escaped(Plain(Text)) : FString();
+			Reply = FStudioQuickAsk::TablesAsRows(T.TryGetStringField(TEXT("replyMarkup"), Text) ? Text : T.TryGetStringField(TEXT("reply"), Text) ? Escaped(Plain(Text)) : FString());
 			NeedsYou = T.TryGetStringField(TEXT("needsYou"), Text) ? Text : FString();
 			ThreadError = T.TryGetStringField(TEXT("error"), Text) ? Text : FString();
 			const int32 Earlier = T.HasTypedField<EJson::Number>(TEXT("earlier")) ? static_cast<int32>(T.GetNumberField(TEXT("earlier"))) : 0;
@@ -1355,6 +1355,94 @@ FString FStudioQuickAsk::RequestBody(const FString& Text, const TArray<FStudioQu
 	FString Out;
 	FJsonSerializer::Serialize(Body, TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Out));
 	return Out;
+}
+
+FString FStudioQuickAsk::TablesAsRows(const FString& Markup)
+{
+	// A row's cells: outer pipes dropped, split on pipes not escaped as \|.
+	auto Cells = [](const FString& Line)
+	{
+		FString Row = Line.TrimStartAndEnd();
+		Row.RemoveFromStart(TEXT("|"));
+		if (Row.EndsWith(TEXT("|")) && !Row.EndsWith(TEXT("\\|")))
+		{
+			Row.LeftChopInline(1);
+		}
+		TArray<FString> Out;
+		FString Cell;
+		for (int32 i = 0; i < Row.Len(); ++i)
+		{
+			if (Row[i] == TEXT('\\') && i + 1 < Row.Len() && Row[i + 1] == TEXT('|'))
+			{
+				Cell.AppendChar(TEXT('|'));
+				++i;
+			}
+			else if (Row[i] == TEXT('|'))
+			{
+				Out.Add(Cell.TrimStartAndEnd());
+				Cell.Reset();
+			}
+			else
+			{
+				Cell.AppendChar(Row[i]);
+			}
+		}
+		Out.Add(Cell.TrimStartAndEnd());
+		return Out;
+	};
+	auto IsSeparator = [&Cells](const FString& Line)
+	{
+		if (!Line.Contains(TEXT("-")) || !Line.Contains(TEXT("|")))
+		{
+			return false;
+		}
+		for (const FString& Cell : Cells(Line))
+		{
+			FString Dashes = Cell.Replace(TEXT(":"), TEXT(""));
+			if (Dashes.IsEmpty() || Dashes.Replace(TEXT("-"), TEXT("")).Len() > 0)
+			{
+				return false;
+			}
+		}
+		return true;
+	};
+
+	TArray<FString> Lines;
+	Markup.Replace(TEXT("\r"), TEXT("")).ParseIntoArray(Lines, TEXT("\n"), false);
+	TArray<FString> Out;
+	for (int32 i = 0; i < Lines.Num(); ++i)
+	{
+		// A table is a header row with pipes and a separator row under it.
+		if (!Lines[i].Contains(TEXT("|")) || i + 1 >= Lines.Num() || !IsSeparator(Lines[i + 1]))
+		{
+			Out.Add(Lines[i]);
+			continue;
+		}
+		const TArray<FString> Header = Cells(Lines[i]);
+		for (i += 2; i < Lines.Num() && Lines[i].Contains(TEXT("|")); ++i)
+		{
+			if (IsSeparator(Lines[i]))
+			{
+				continue;
+			}
+			const TArray<FString> Row = Cells(Lines[i]);
+			bool bFirst = true;
+			for (int32 c = 0; c < Row.Num(); ++c)
+			{
+				if (Row[c].IsEmpty())
+				{
+					continue;
+				}
+				// A header that carries markup of its own is left as it is: rich text tags do not nest.
+				const FString Name = Header.IsValidIndex(c) ? Header[c] : FString();
+				const FString Label = Name.IsEmpty() ? FString() : Name.Contains(TEXT("<")) ? Name + TEXT(": ") : TEXT("<b>") + Name + TEXT("</>: ");
+				Out.Add((bFirst ? FString(TEXT("•  ")) : FString(TEXT("    "))) + Label + Row[c]);
+				bFirst = false;
+			}
+		}
+		--i;
+	}
+	return FString::Join(Out, TEXT("\n"));
 }
 
 #undef LOCTEXT_NAMESPACE
