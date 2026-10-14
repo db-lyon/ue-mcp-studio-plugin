@@ -115,6 +115,8 @@ namespace StudioDockImpl
 	uint32 Frame = 0;
 	bool bSeenStudio = false;
 	uint32 SeenRequestSeq = 0;
+	/** The tab opens only for the setup page; the kept mode stays as it is. */
+	bool bSetupOnly = false;
 
 	FDelegateHandle PostTickHandle;
 	FDelegateHandle RenderedHandle;
@@ -401,9 +403,12 @@ namespace StudioDockImpl
 		Area = NewArea;
 		bPaintedLastRender = false;
 		UE_LOG(LogStudioDock, Log, TEXT("dock tab spawned"));
-		// A layout holding this tab means docked, whatever opened it.
-		SaveMode(true);
-		FStudioWindow::Open(TEXT("docked"));
+		// A layout holding this tab means docked, whatever opened it, but the setup page.
+		if (!bSetupOnly)
+		{
+			SaveMode(true);
+			FStudioWindow::Open(TEXT("docked"));
+		}
 		return NewTab;
 	}
 
@@ -710,8 +715,22 @@ bool FStudioDock::OpenStudio()
 	{
 		return true;
 	}
-	// Studio cannot run yet: the dock tab shows the setup page.
+	// Studio cannot run yet: the dock tab shows the setup page, and a project kept in a window stays so.
+	TGuardValue<bool> SetupOnly(DockImpl::bSetupOnly, DockImpl::SavedMode() == TEXT("window"));
 	return OpenTab();
+}
+
+void FStudioDock::OpenAfterSetup()
+{
+	if (IsDockedMode())
+	{
+		FStudioWindow::Open(TEXT("docked"));
+	}
+	else if (FStudioWindow::Open(TEXT("window")))
+	{
+		// The tab only held the setup page.
+		CloseTab();
+	}
 }
 
 void FStudioDock::SetDocked(bool bDocked)

@@ -246,7 +246,8 @@ TSharedRef<SWidget> SStudioPanel::MakeConsent()
 						{
 							Browser->LoadURL(BootstrapUrl());
 						}
-						FStudioDaemon::EnsureRunning();
+						// Studio's open was refused before consent; this starts the daemon and opens Studio once it is up.
+						FStudioDock::OpenAfterSetup();
 						return FReply::Handled();
 					})
 					[
@@ -289,7 +290,7 @@ bool SStudioPanel::Poll(float)
 		FString Error;
 		if (FStudioDaemon::LoadInstalledBridge(Error))
 		{
-			FStudioDaemon::EnsureRunning();
+			FStudioDock::OpenAfterSetup();
 		}
 		else
 		{

@@ -36,6 +36,9 @@ public:
 	/** Open Studio the way the project keeps it: in the dock tab, or in its own window; the dock tab's setup page when Studio cannot run yet. */
 	static bool OpenStudio();
 
+	/** Open Studio once the setup page let it run (install consent, the bridge), in the project's mode; the open it stood in for. */
+	static void OpenAfterSetup();
+
 	/** Switch to docked or to a window of its own, keep the choice, and show Studio that way. */
 	static void SetDocked(bool bDocked);
 
