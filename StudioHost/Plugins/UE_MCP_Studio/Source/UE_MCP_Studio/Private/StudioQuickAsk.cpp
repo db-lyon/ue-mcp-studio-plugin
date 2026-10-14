@@ -106,7 +106,8 @@ namespace StudioQuickAsk
 
 	/**
 	 * The pill's colours for the theme picked in Studio's Settings: Studio's own
-	 * palette for ue-mcp and Light, Unreal's style for Editor. Outlines are
+	 * palette for ue-mcp, Unreal's style for Editor, and Unreal's colours with the
+	 * ue-mcp orange for Editor orange. Outlines are
 	 * Studio's translucent lines laid over the panel, so they stay opaque here.
 	 */
 	struct FPillTheme
@@ -130,17 +131,17 @@ namespace StudioQuickAsk
 			Settings->TryGetStringField(TEXT("theme"), Name);
 		}
 		FPillTheme T;
-		if (Name == TEXT("light"))
+		if (Name == TEXT("editor-orange"))
 		{
 			T.bEditor = false;
-			T.Panel = Hex(TEXT("ffffff"));
-			T.Outline = Hex(TEXT("d9d8d6"));
-			T.Input = Hex(TEXT("f7f5f1"));
-			T.Text = Hex(TEXT("1b1a17"));
-			T.Dim = Hex(TEXT("8e8a81"));
-			T.Accent = Hex(TEXT("c95f06"));
-			T.AccentHi = Hex(TEXT("e8720c"));
-			T.OnAccent = Hex(TEXT("ffffff"));
+			T.Panel = FStyleColors::Panel;
+			T.Outline = FStyleColors::InputOutline;
+			T.Input = FStyleColors::Input;
+			T.Text = FSlateColor::UseForeground();
+			T.Dim = FSlateColor::UseSubduedForeground();
+			T.Accent = Hex(TEXT("e8720c"));
+			T.AccentHi = Hex(TEXT("f28a2e"));
+			T.OnAccent = Hex(TEXT("140a02"));
 		}
 		else if (Name != TEXT("editor"))
 		{
