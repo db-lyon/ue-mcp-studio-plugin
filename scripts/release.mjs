@@ -83,6 +83,11 @@ for (const engine of engines) {
     fs.rmSync(fabStage, { recursive: true, force: true });
     fs.mkdirSync(fabPkg, { recursive: true });
     for (const d of ["Source", "Resources", "Config"]) fs.cpSync(path.join(path.dirname(UPLUGIN), d), path.join(fabPkg, d), { recursive: true });
+    // The Fab copy compiles with UE_MCP_STUDIO_FAB=1, so it never offers to replace its own files.
+    const buildCs = path.join(fabPkg, "Source", "UE_MCP_Studio", "UE_MCP_Studio.Build.cs");
+    const rules = fs.readFileSync(buildCs, "utf-8");
+    if (rules.split("const bool bFabBuild = false;").length !== 2) throw new Error(`${buildCs} has no single "const bool bFabBuild = false;" line to switch`);
+    fs.writeFileSync(buildCs, rules.replace("const bool bFabBuild = false;", "const bool bFabBuild = true;"));
     // Fab's layout lists Content; the plugin has none, so it ships empty.
     fs.mkdirSync(path.join(fabPkg, "Content"));
     const fabDescriptor = { ...descriptor, EngineVersion: `${engine}.0` };

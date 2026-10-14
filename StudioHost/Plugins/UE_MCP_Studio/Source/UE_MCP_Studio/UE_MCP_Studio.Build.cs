@@ -8,6 +8,10 @@ public class UE_MCP_Studio : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
+		// scripts/release.mjs --fab sets this to true in the Fab copy; Fab updates that copy, never the plugin itself.
+		const bool bFabBuild = false;
+		PrivateDefinitions.Add("UE_MCP_STUDIO_FAB=" + (bFabBuild ? "1" : "0"));
+
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"Core",
