@@ -7,7 +7,7 @@
 	"Category": "Artificial Intelligence",
 	"CreatedBy": "ue-mcp",
 	"CreatedByURL": "https://ue-mcp.com",
-	"DocsURL": "https://ue-mcp.com/docs/studio/",
+	"DocsURL": "https://ue-mcp.com/docs/studio",
 	"SupportURL": "https://github.com/db-lyon/ue-mcp-studio-plugin/issues",
 	"CanContainContent": false,
 	"IsBetaVersion": false,
