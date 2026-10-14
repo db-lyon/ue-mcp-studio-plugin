@@ -38,6 +38,7 @@
 #include "Widgets/SViewport.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "Policies/CondensedJsonPrintPolicy.h"
 #include "Serialization/JsonWriter.h"
 #include "Styling/AppStyle.h"
 #include "Styling/StyleColors.h"
