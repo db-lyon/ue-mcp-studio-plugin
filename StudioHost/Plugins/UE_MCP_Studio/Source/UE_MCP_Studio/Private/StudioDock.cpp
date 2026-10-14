@@ -117,6 +117,8 @@ namespace StudioDockImpl
 	uint32 SeenRequestSeq = 0;
 	/** The tab opens only for the setup page; the kept mode stays as it is. */
 	bool bSetupOnly = false;
+	/** Set while this plugin opens the tab. A spawn outside it is a restored layout or the Window menu, which never changes the kept mode. */
+	bool bOpening = false;
 
 	FDelegateHandle PostTickHandle;
 	FDelegateHandle RenderedHandle;
@@ -402,12 +404,38 @@ namespace StudioDockImpl
 		Tab = NewTab;
 		Area = NewArea;
 		bPaintedLastRender = false;
-		UE_LOG(LogStudioDock, Log, TEXT("dock tab spawned"));
-		// A layout holding this tab means docked, whatever opened it, but the setup page.
-		if (!bSetupOnly)
+		if (bSetupOnly)
 		{
+			UE_LOG(LogStudioDock, Log, TEXT("dock tab spawned for the setup page"));
+		}
+		else if (bOpening)
+		{
+			UE_LOG(LogStudioDock, Log, TEXT("dock tab opened: docked"));
 			SaveMode(true);
 			FStudioWindow::Open(TEXT("docked"));
+		}
+		else if (FStudioDock::IsDockedMode())
+		{
+			UE_LOG(LogStudioDock, Log, TEXT("dock tab restored: docked"));
+			FStudioWindow::Open(TEXT("docked"));
+		}
+		else if (FStudioWindow::Open(SavedMode() == TEXT("window") ? TEXT("window") : nullptr))
+		{
+			// Kept in a window: the tab only launches it, and closes once it is in place.
+			UE_LOG(LogStudioDock, Log, TEXT("dock tab restored in window mode: Studio opens in its window and the tab closes"));
+			TWeakPtr<SDockTab> Weak = NewTab;
+			FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Weak](float)
+			{
+				if (const TSharedPtr<SDockTab> T = Weak.Pin())
+				{
+					T->RequestCloseTab();
+				}
+				return false;
+			}));
+		}
+		else
+		{
+			UE_LOG(LogStudioDock, Log, TEXT("dock tab restored in window mode before Studio can run: it holds the setup page"));
 		}
 		return NewTab;
 	}
@@ -693,6 +721,7 @@ bool FStudioDock::StudioCanDock()
 bool FStudioDock::OpenTab()
 {
 	const TSharedPtr<FTabManager> Tabs = DockImpl::LevelEditorTabs();
+	TGuardValue<bool> Opening(DockImpl::bOpening, true);
 	return Tabs.IsValid() && Tabs->TryInvokeTab(TabId).IsValid();
 }
 
