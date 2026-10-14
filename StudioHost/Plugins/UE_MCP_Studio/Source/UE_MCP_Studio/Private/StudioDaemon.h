@@ -82,6 +82,9 @@ public:
 	/** Where Studio writes the output of the processes it starts. */
 	static FString LogPath();
 
+	/** ~/.ue-mcp, where ue-mcp and Studio keep per-user state. */
+	static FString UserDir();
+
 	/** Where daemon extensions live: UE_MCP_EXTENSIONS_DIR, else ~/.ue-mcp/extensions. */
 	static FString ExtensionsDir();
 
@@ -123,6 +126,6 @@ public:
 	static bool bBridgeNeedsRestart;
 
 private:
-	/** Run each command in turn, detached. Output appends to the Studio log, or stdout goes to StdoutFile when given. */
+	/** Run each command in turn, detached. Refused without install consent (FStudioConsent). Output appends to the Studio log, or stdout goes to StdoutFile when given. */
 	static bool SpawnNpx(const TArray<FString>& Commands, FString& OutError, const FString& StdoutFile = FString());
 };

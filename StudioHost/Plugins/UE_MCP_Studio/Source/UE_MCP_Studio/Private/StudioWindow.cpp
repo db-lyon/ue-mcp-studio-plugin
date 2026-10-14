@@ -2,6 +2,7 @@
 
 #include "StudioWindow.h"
 
+#include "StudioConsent.h"
 #include "StudioDaemon.h"
 #include "Containers/Ticker.h"
 #include "Dom/JsonObject.h"
@@ -92,7 +93,8 @@ bool FStudioWindow::Open(const TCHAR* Mode)
 		RequestWindow(Info, Mode ? FString(Mode) : FString());
 		return true;
 	}
-	if (!FStudioDaemon::IsBridgeInstalled() || FStudioDaemon::FindNode().IsEmpty())
+	// Without install consent the dock tab's setup page asks for it.
+	if (!FStudioConsent::IsGranted() || !FStudioDaemon::IsBridgeInstalled() || FStudioDaemon::FindNode().IsEmpty())
 	{
 		return false;
 	}

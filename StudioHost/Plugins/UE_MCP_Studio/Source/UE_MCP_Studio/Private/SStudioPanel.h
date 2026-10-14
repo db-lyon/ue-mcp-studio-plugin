@@ -16,7 +16,8 @@ struct FWebNavigationRequest;
 
 /**
  * Setup and status, shown in the UE-MCP Studio tab while Studio cannot run:
- * the bundled setup page until the daemon is up (Node.js, the bridge, the
+ * the install consent prompt until the user allows installs, then the
+ * bundled setup page until the daemon is up (Node.js, the bridge, the
  * project's setup, starting the daemon), then the launcher with the state of
  * the editor, the daemon and updates.
  */
@@ -43,6 +44,8 @@ private:
 	void RequestUpdates(const FStudioDaemonInfo& Info);
 
 	TSharedRef<SWidget> MakeLauncher();
+	/** What Studio installs and where, with Allow and Not now. */
+	TSharedRef<SWidget> MakeConsent();
 
 	TSharedPtr<SWidgetSwitcher> Switcher;
 	TSharedPtr<SWebBrowser> Browser;

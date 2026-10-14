@@ -17,7 +17,7 @@ public:
 	/**
 	 * Open the window, or bring it forward. Starts the daemon first when it is not
 	 * running and opens once it is up. Returns false when Studio cannot run yet
-	 * (no Node.js, no bridge), which the status tab's setup page handles.
+	 * (no install consent, no Node.js, no bridge), which the status tab's setup page handles.
 	 * Mode "docked" or "window" switches the window to it; null keeps its own.
 	 */
 	static bool Open(const TCHAR* Mode = nullptr);

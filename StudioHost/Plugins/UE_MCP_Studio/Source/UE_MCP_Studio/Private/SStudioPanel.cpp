@@ -3,6 +3,7 @@
 #include "SStudioPanel.h"
 
 #include "SStudioKeyGuard.h"
+#include "StudioConsent.h"
 #include "StudioDaemon.h"
 #include "StudioDock.h"
 #include "StudioNativeBinding.h"
@@ -40,6 +41,11 @@ namespace
 {
 	constexpr double HealthEverySeconds = 2.0;
 	constexpr double UpdatesEverySeconds = 600.0;
+
+	/** The switcher's pages. */
+	constexpr int32 SetupPage = 0;
+	constexpr int32 LauncherPage = 1;
+	constexpr int32 ConsentPage = 2;
 
 	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> DaemonGet(const FStudioDaemonInfo& Info, const FString& Path)
 	{
@@ -105,6 +111,7 @@ void SStudioPanel::Construct(const FArguments& InArgs)
 		SAssignNew(Switcher, SWidgetSwitcher)
 		+ SWidgetSwitcher::Slot()[Setup]
 		+ SWidgetSwitcher::Slot()[MakeLauncher()]
+		+ SWidgetSwitcher::Slot()[MakeConsent()]
 	];
 
 	Ticker = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateSP(this, &SStudioPanel::Poll), 1.0f);
@@ -180,6 +187,86 @@ TSharedRef<SWidget> SStudioPanel::MakeLauncher()
 		];
 }
 
+TSharedRef<SWidget> SStudioPanel::MakeConsent()
+{
+	TSharedRef<SVerticalBox> List = SNew(SVerticalBox);
+	for (const FStudioInstallTarget& Target : FStudioConsent::Targets())
+	{
+		List->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)
+		[
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot().AutoHeight()
+			[
+				SNew(STextBlock).AutoWrapText(true).Text(Target.What)
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(12.f, 2.f, 0.f, 0.f)
+			[
+				SNew(STextBlock).AutoWrapText(true).ColorAndOpacity(FSlateColor::UseSubduedForeground())
+				.Font(FCoreStyle::GetDefaultFontStyle("Mono", 9)).Text(FText::FromString(Target.Where))
+			]
+		];
+	}
+	return SNew(SScrollBox)
+		+ SScrollBox::Slot()
+		.Padding(20.f, 18.f)
+		[
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 6.f)
+			[
+				SNew(STextBlock).Text(LOCTEXT("ConsentTitle", "Allow Studio to install its parts?")).Font(FCoreStyle::GetDefaultFontStyle("Bold", 16))
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 14.f)
+			[
+				SNew(STextBlock).AutoWrapText(true)
+				.Text(LOCTEXT("ConsentAbout", "Studio needs the parts below. They are downloaded from npm (registry.npmjs.org) and GitHub (github.com) and installed here. Nothing is downloaded or installed until you allow it. You are asked once."))
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 10.f)
+			[
+				List
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 16.f)
+			[
+				SNew(STextBlock).AutoWrapText(true).ColorAndOpacity(FSlateColor::UseSubduedForeground())
+				.Text(FText::Format(LOCTEXT("ConsentRecord", "Your answer is kept in {0}. Node.js is not installed by Studio."), FText::FromString(FPaths::ConvertRelativePathToFull(FStudioConsent::FilePath()))))
+			]
+			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Left)
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth().Padding(0.f, 0.f, 8.f, 0.f)
+				[
+					SNew(SButton)
+					.ButtonStyle(FAppStyle::Get(), "PrimaryButton")
+					.ContentPadding(FMargin(14.f, 5.f))
+					.OnClicked_Lambda([this]()
+					{
+						FStudioConsent::Grant();
+						Switcher->SetActiveWidgetIndex(SetupPage);
+						// The page loaded before consent, when its calls were refused.
+						if (Browser.IsValid())
+						{
+							Browser->LoadURL(BootstrapUrl());
+						}
+						FStudioDaemon::EnsureRunning();
+						return FReply::Handled();
+					})
+					[
+						SNew(STextBlock).Text(LOCTEXT("ConsentAllow", "Allow"))
+					]
+				]
+				+ SHorizontalBox::Slot().AutoWidth()
+				[
+					SNew(SButton)
+					.ContentPadding(FMargin(14.f, 5.f))
+					// Nothing is kept, so the next open asks again.
+					.OnClicked_Lambda([]() { FStudioDock::CloseTab(); return FReply::Handled(); })
+					[
+						SNew(STextBlock).Text(LOCTEXT("ConsentNotNow", "Not now"))
+					]
+				]
+			]
+		];
+}
+
 SStudioPanel::~SStudioPanel()
 {
 	FTSTicker::GetCoreTicker().RemoveTicker(Ticker);
@@ -212,6 +299,12 @@ bool SStudioPanel::Poll(float)
 
 	FStudioDaemonInfo Info;
 	const bool bLive = FStudioDaemon::ReadLive(Info);
+	if (!bLive && !FStudioConsent::IsGranted())
+	{
+		LivePort = 0;
+		Switcher->SetActiveWidgetIndex(ConsentPage);
+		return true;
+	}
 	if (bLive)
 	{
 		if (Info.Port != LivePort)
@@ -219,7 +312,7 @@ bool SStudioPanel::Poll(float)
 			// A daemon came up, or a new one replaced the one shown.
 			LivePort = Info.Port;
 			LastHealth = LastUpdates = 0.0;
-			Switcher->SetActiveWidgetIndex(1);
+			Switcher->SetActiveWidgetIndex(LauncherPage);
 		}
 		DaemonText = FText::Format(LOCTEXT("DaemonLive", "Daemon: ue-mcp {0} on port {1}"), FText::FromString(Info.Version), FText::AsNumber(Info.Port, &FNumberFormattingOptions::DefaultNoGrouping()));
 		const double Now = FPlatformTime::Seconds();
@@ -235,11 +328,11 @@ bool SStudioPanel::Poll(float)
 		}
 		FStudioWindow::PublishEditorTheme();
 	}
-	else if (LivePort != 0 || Switcher->GetActiveWidgetIndex() != 0)
+	else if (LivePort != 0 || Switcher->GetActiveWidgetIndex() != SetupPage)
 	{
 		// The setup page explains and offers to start it again.
 		LivePort = 0;
-		Switcher->SetActiveWidgetIndex(0);
+		Switcher->SetActiveWidgetIndex(SetupPage);
 		if (Browser.IsValid())
 		{
 			Browser->LoadURL(BootstrapUrl());

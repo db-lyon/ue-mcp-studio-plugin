@@ -2,6 +2,7 @@
 
 #include "StudioDaemon.h"
 
+#include "StudioConsent.h"
 #include "Dom/JsonObject.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
@@ -105,7 +106,7 @@ FString FStudioDaemon::DiscoveryPath()
 	FString Dir = FPlatformMisc::GetEnvironmentVariable(TEXT("UE_MCP_DAEMON_DIR"));
 	if (Dir.IsEmpty())
 	{
-		Dir = FPaths::Combine(UserHome(), TEXT(".ue-mcp"), TEXT("daemons"));
+		Dir = FPaths::Combine(UserDir(), TEXT("daemons"));
 	}
 	return FPaths::Combine(Dir, ProjectKey() + TEXT(".json"));
 }
@@ -216,7 +217,7 @@ FString FStudioDaemon::PackageSpec()
 
 FString FStudioDaemon::ManifestCachePath()
 {
-	return FPaths::Combine(UserHome(), TEXT(".ue-mcp"), TEXT("studio"), TEXT("latest.json"));
+	return FPaths::Combine(UserDir(), TEXT("studio"), TEXT("latest.json"));
 }
 
 FString FStudioDaemon::LogPath()
@@ -234,10 +235,15 @@ bool FStudioDaemon::StartDaemon(FString& OutError)
 	return SpawnNpx({ FString::Printf(TEXT("-y %s daemon start \"%s\""), *PackageSpec(), *ProjectFile()) }, OutError);
 }
 
+FString FStudioDaemon::UserDir()
+{
+	return FPaths::Combine(UserHome(), TEXT(".ue-mcp"));
+}
+
 FString FStudioDaemon::ExtensionsDir()
 {
 	const FString Dir = FPlatformMisc::GetEnvironmentVariable(TEXT("UE_MCP_EXTENSIONS_DIR"));
-	return Dir.IsEmpty() ? FPaths::Combine(UserHome(), TEXT(".ue-mcp"), TEXT("extensions")) : Dir;
+	return Dir.IsEmpty() ? FPaths::Combine(UserDir(), TEXT("extensions")) : Dir;
 }
 
 FString FStudioDaemon::InstalledExtensionVersion()
@@ -274,7 +280,8 @@ bool FStudioDaemon::InstallExtensionAndStart(FString& OutError)
 
 void FStudioDaemon::EnsureRunning()
 {
-	if (!IsBridgeInstalled() || FindNode().IsEmpty())
+	// Without consent nothing installs or downloads; the dock tab asks.
+	if (!FStudioConsent::IsGranted() || !IsBridgeInstalled() || FindNode().IsEmpty())
 	{
 		return;
 	}
@@ -480,6 +487,12 @@ bool FStudioDaemon::RunSetup(const FStudioSetupOptions& Options, FString& OutErr
 
 bool FStudioDaemon::SpawnNpx(const TArray<FString>& Commands, FString& OutError, const FString& StdoutFile)
 {
+	// Every npx run may download ue-mcp, so each one needs the user's consent.
+	if (!FStudioConsent::IsGranted())
+	{
+		OutError = TEXT("installs need your consent; allow them in the UE-MCP Studio tab");
+		return false;
+	}
 	const FString Node = FindNode();
 	if (Node.IsEmpty())
 	{
