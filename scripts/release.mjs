@@ -10,7 +10,9 @@
  * Studio's updater reads. The version is the .uplugin's VersionName.
  *
  * --fab       also writes UE_MCP_Studio-<version>-UE<engine>-Fab.zip, the source-only
- *             submission Fab builds itself. --fab-url sets FabURL once the listing exists.
+ *             submission Fab builds itself, checks it against Fab's file rules, then
+ *             builds the unpacked zip with BuildPlugin the way Fab does.
+ *             --fab-url sets FabURL once the listing exists.
  * --publish   creates release v<version> on db-lyon/ue-mcp-studio-plugin. A stable version is
  *             marked latest, so .../releases/latest/download/plugin.json resolves to it; a
  *             prerelease is published beside it for testers and never becomes latest.
@@ -66,12 +68,7 @@ for (const engine of engines) {
   const stage = path.join(os.tmpdir(), "uemcps", `UE${engine}`);
   const pkg = path.join(stage, "UE_MCP_Studio");
   fs.rmSync(stage, { recursive: true, force: true });
-  const argsLine = [uat, "BuildPlugin", `-Plugin=${UPLUGIN}`, `-Package=${pkg}`, "-TargetPlatforms=Win64", "-Rocket"].map((x) => `"${x}"`).join(" ");
-  const r = spawnSync(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", `"${argsLine}"`], { stdio: ["ignore", "pipe", "inherit"], encoding: "utf-8", maxBuffer: 256 * 1024 * 1024, windowsVerbatimArguments: true });
-  process.stdout.write(r.stdout ?? "");
-  if (r.status !== 0) throw new Error(`BuildPlugin UE_MCP_Studio failed for UE ${engine}`);
-  const warnings = buildWarnings(r.stdout ?? "");
-  if (warnings.length) throw new Error(`UE ${engine} build has warnings in the plugin's sources:\n${warnings.join("\n")}`);
+  buildPlugin(uat, engine, UPLUGIN, pkg);
   for (const d of ["Intermediate", "HostProject"]) fs.rmSync(path.join(pkg, d), { recursive: true, force: true });
   const name = `UE_MCP_Studio-${version}-UE${engine}-Win64.zip`;
   zip(stage, "UE_MCP_Studio", path.join(OUT, name));
@@ -85,16 +82,25 @@ for (const engine of engines) {
     const fabPkg = path.join(fabStage, "UE_MCP_Studio");
     fs.rmSync(fabStage, { recursive: true, force: true });
     fs.mkdirSync(fabPkg, { recursive: true });
-    for (const d of ["Source", "Resources"]) fs.cpSync(path.join(path.dirname(UPLUGIN), d), path.join(fabPkg, d), { recursive: true });
+    for (const d of ["Source", "Resources", "Config"]) fs.cpSync(path.join(path.dirname(UPLUGIN), d), path.join(fabPkg, d), { recursive: true });
+    // Fab's layout lists Content; the plugin has none, so it ships empty.
+    fs.mkdirSync(path.join(fabPkg, "Content"));
     const fabDescriptor = { ...descriptor, EngineVersion: `${engine}.0` };
     if (fabUrl) fabDescriptor.FabURL = fabUrl;
     fs.writeFileSync(path.join(fabPkg, "UE_MCP_Studio.uplugin"), JSON.stringify(fabDescriptor, null, "\t") + "\n");
-    const long = walk(fabPkg).map((f) => "UE_MCP_Studio/" + path.relative(fabPkg, f).replaceAll("\\", "/")).filter((f) => f.length > 170);
-    if (long.length) throw new Error(`Fab caps paths at 170 characters: ${long.join(", ")}`);
     const fabName = `UE_MCP_Studio-${version}-UE${engine}-Fab.zip`;
-    zip(fabStage, "UE_MCP_Studio", path.join(OUT, fabName));
+    const fabZip = path.join(OUT, fabName);
+    zip(fabStage, "UE_MCP_Studio", fabZip);
     fs.rmSync(fabStage, { recursive: true, force: true });
-    console.log(`${fabName} packaged`);
+    checkFabZip(fabZip);
+    // Fab builds the submission itself; build the unpacked zip the same way, without unity or PCHs so every header stands alone.
+    const verify = path.join(os.tmpdir(), "uemcps", `UE${engine}-fabcheck`);
+    fs.rmSync(verify, { recursive: true, force: true });
+    fs.mkdirSync(verify, { recursive: true });
+    execFileSync(tar, ["-x", "-f", fabZip, "-C", verify], { stdio: "inherit" });
+    buildPlugin(uat, engine, path.join(verify, "UE_MCP_Studio", "UE_MCP_Studio.uplugin"), path.join(verify, "Package", "UE_MCP_Studio"), ["-StrictIncludes"]);
+    fs.rmSync(verify, { recursive: true, force: true });
+    console.log(`${fabName} packaged and built clean`);
   }
 }
 
@@ -127,11 +133,56 @@ function walk(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]));
 }
 
+/** RunUAT BuildPlugin for Win64, plus any extra flags; throws on failure or on any warning in the plugin's own sources. */
+function buildPlugin(uat, engine, uplugin, pkg, extra = []) {
+  const argsLine = [uat, "BuildPlugin", `-Plugin=${uplugin}`, `-Package=${pkg}`, "-TargetPlatforms=Win64", "-Rocket", ...extra].map((x) => `"${x}"`).join(" ");
+  const r = spawnSync(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", `"${argsLine}"`], { stdio: ["ignore", "pipe", "inherit"], encoding: "utf-8", maxBuffer: 256 * 1024 * 1024, windowsVerbatimArguments: true });
+  process.stdout.write(r.stdout ?? "");
+  if (r.status !== 0) throw new Error(`BuildPlugin ${uplugin} failed for UE ${engine}`);
+  const warnings = buildWarnings(r.stdout ?? "");
+  if (warnings.length) throw new Error(`UE ${engine} build has warnings in the plugin's sources:\n${warnings.join("\n")}`);
+}
+
+/**
+ * Fab's file rules, read from the zip itself: no scripts, executables or build output, no
+ * license of our own (Fab's EULA governs), names of English letters, digits and underscores,
+ * paths at most 170 characters, and a copyright first line in every source file.
+ */
+function checkFabZip(file) {
+  const entries = execFileSync(tar, ["-t", "-f", file], { encoding: "utf-8" }).split(/\r?\n/).filter(Boolean).map((e) => e.replace(/\/$/, ""));
+  const problems = [];
+  const banned = /\.(sh|bat|cmd|ps1|mjs|cjs|js|exe|msi|dll|pdb|lib|so|dylib)$/i;
+  for (const entry of entries) {
+    const parts = entry.split("/");
+    if (entry.length > 170) problems.push(`${entry}: longer than 170 characters`);
+    if (banned.test(entry)) problems.push(`${entry}: a file type Fab does not accept`);
+    for (const part of parts) {
+      if (["Binaries", "Intermediate", "Saved", "DerivedDataCache"].includes(part)) problems.push(`${entry}: build output`);
+      if (!/^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$/.test(part)) problems.push(`${entry}: "${part}" is not English letters, digits and underscores`);
+    }
+    if (/^LICENSE/i.test(parts[parts.length - 1])) problems.push(`${entry}: the Fab copy is under Fab's EULA`);
+  }
+  const unpacked = fs.mkdtempSync(path.join(os.tmpdir(), "uemcps-check-"));
+  try {
+    execFileSync(tar, ["-x", "-f", file, "-C", unpacked], { stdio: "inherit" });
+    for (const f of walk(unpacked).filter((f) => /\.(h|hpp|inl|cpp|cs)$/i.test(f))) {
+      const first = fs.readFileSync(f, "utf-8").replace(/^﻿/, "").split(/\r?\n/, 1)[0];
+      if (!/^\/\/ Copyright \d{4} \S.*\. All Rights Reserved\.$/.test(first)) problems.push(`${path.relative(unpacked, f)}: the first line is not a copyright notice`);
+    }
+  } finally {
+    fs.rmSync(unpacked, { recursive: true, force: true });
+  }
+  for (const required of ["UE_MCP_Studio/UE_MCP_Studio.uplugin", "UE_MCP_Studio/Config/FilterPlugin.ini", "UE_MCP_Studio/Resources/Icon128.png"]) {
+    if (!entries.includes(required)) problems.push(`${required}: missing`);
+  }
+  if (problems.length) throw new Error(`${path.basename(file)} breaks Fab's rules:\n${problems.join("\n")}`);
+}
+
 /** Compiler warnings raised in UE_MCP_Studio's own source files, from BuildPlugin's output. */
 function buildWarnings(output) {
   const found = new Set();
   for (const line of output.split(/\r?\n/)) {
-    if (/UE_MCP_Studio[\/]Source/.test(line) && /\bwarning\b/i.test(line)) found.add(line.trim());
+    if (/UE_MCP_Studio[\\/]Source/.test(line) && /\bwarning\b/i.test(line)) found.add(line.trim());
   }
   return [...found];
 }
