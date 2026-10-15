@@ -1,6 +1,7 @@
 // Copyright 2026 ue-mcp. All Rights Reserved.
 
 #include "StudioConsent.h"
+#include "StudioDaemon.h"
 #include "Misc/AutomationTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -32,6 +33,21 @@ bool FStudioConsentTargetsTest::RunTest(const FString&)
 	{
 		TestFalse(FString::Printf(TEXT("%s has a path"), *Target.What.ToString()), Target.Where.IsEmpty());
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStudioConsentOpenStepTest, "UE.Studio.Consent.OpenStep",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FStudioConsentOpenStepTest::RunTest(const FString&)
+{
+	// A daemon another MCP client started is live before Studio is installed or allowed.
+	TestTrue(TEXT("a live daemon without consent asks"), FStudioDaemon::NextOpenStep(false, false, true) == EStudioOpenStep::AskConsent);
+	TestTrue(TEXT("no daemon and no consent asks"), FStudioDaemon::NextOpenStep(false, false, false) == EStudioOpenStep::AskConsent);
+	TestTrue(TEXT("a live daemon without the extension installs it"), FStudioDaemon::NextOpenStep(true, false, true) == EStudioOpenStep::Install);
+	TestTrue(TEXT("no daemon and no extension installs it"), FStudioDaemon::NextOpenStep(true, false, false) == EStudioOpenStep::Install);
+	TestTrue(TEXT("the extension without a daemon starts one"), FStudioDaemon::NextOpenStep(true, true, false) == EStudioOpenStep::Start);
+	TestTrue(TEXT("the extension and a live daemon open"), FStudioDaemon::NextOpenStep(true, true, true) == EStudioOpenStep::Open);
 	return true;
 }
 

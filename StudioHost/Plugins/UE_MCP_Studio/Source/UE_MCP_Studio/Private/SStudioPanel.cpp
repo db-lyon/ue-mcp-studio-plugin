@@ -298,8 +298,9 @@ bool SStudioPanel::Poll(float)
 		}
 	}
 
+	// A daemon another MCP client started is not Studio: without consent the prompt shows regardless.
 	FStudioDaemonInfo Info;
-	const bool bLive = FStudioDaemon::ReadLive(Info);
+	const bool bLive = FStudioDaemon::ReadReady(Info);
 	if (!bLive && !FStudioConsent::IsGranted())
 	{
 		LivePort = 0;

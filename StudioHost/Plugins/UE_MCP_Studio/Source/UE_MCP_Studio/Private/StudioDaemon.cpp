@@ -7,6 +7,7 @@
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
 #include "HAL/PlatformProcess.h"
+#include "HAL/PlatformTime.h"
 #include "Interfaces/IPluginManager.h"
 #include "PluginDescriptor.h"
 #include "Misc/FileHelper.h"
@@ -28,6 +29,7 @@
 DEFINE_LOG_CATEGORY_STATIC(LogStudio, Log, All);
 
 bool FStudioDaemon::bBridgeNeedsRestart = false;
+int32 FStudioDaemon::ExtensionMissingPid = 0;
 
 namespace
 {
@@ -36,6 +38,10 @@ namespace
 	// update to follow a ue-mcp release.
 	const TCHAR* FallbackMinUeMcpVersion = TEXT("1.4.3");
 	const TCHAR* FallbackUeMcpPackage = TEXT("ue-mcp@latest");
+
+	/** When the last extension install started, and how long one is taken to be under way. */
+	double LastInstallStarted = -1.0;
+	constexpr double InstallSettleSeconds = 60.0;
 
 	/** Semver order over X.Y.Z[-pre.N]; a prerelease sorts below its release. */
 	int32 CompareVersions(const FString& A, const FString& B)
@@ -147,6 +153,55 @@ bool FStudioDaemon::ReadLive(FStudioDaemonInfo& Out)
 	}
 	Out = Info;
 	return true;
+}
+
+bool FStudioDaemon::ReadReady(FStudioDaemonInfo& Out)
+{
+	FStudioDaemonInfo Info;
+	if (!ReadLive(Info) || Info.Pid == ExtensionMissingPid
+		|| NextOpenStep(FStudioConsent::IsGranted(), !InstalledExtensionVersion().IsEmpty(), true) != EStudioOpenStep::Open)
+	{
+		return false;
+	}
+	Out = Info;
+	return true;
+}
+
+EStudioOpenStep FStudioDaemon::NextOpenStep(bool bGranted, bool bExtensionInstalled, bool bLive)
+{
+	if (!bGranted)
+	{
+		return EStudioOpenStep::AskConsent;
+	}
+	if (!bExtensionInstalled)
+	{
+		return EStudioOpenStep::Install;
+	}
+	return bLive ? EStudioOpenStep::Open : EStudioOpenStep::Start;
+}
+
+void FStudioDaemon::CheckExtensionLoaded(const FStudioDaemonInfo& Info, TFunction<void(bool bLoaded, int32 Code)> Done)
+{
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
+	Request->SetURL(FString::Printf(TEXT("http://127.0.0.1:%d/v1/ext/studio/about"), Info.Port));
+	Request->SetVerb(TEXT("GET"));
+	Request->SetHeader(TEXT("Authorization"), TEXT("Bearer ") + Info.Token);
+	const int32 Pid = Info.Pid;
+	Request->OnProcessRequestComplete().BindLambda([Done, Pid](FHttpRequestPtr, FHttpResponsePtr Response, bool bOk)
+	{
+		const int32 Code = bOk && Response.IsValid() ? Response->GetResponseCode() : 0;
+		// Remembered, so the tab shows the setup page for this daemon instead of a Studio it cannot serve.
+		if (Code == 404)
+		{
+			ExtensionMissingPid = Pid;
+		}
+		else if (Code == 200 && ExtensionMissingPid == Pid)
+		{
+			ExtensionMissingPid = 0;
+		}
+		Done(Code == 200, Code);
+	});
+	Request->ProcessRequest();
 }
 
 FString FStudioDaemon::FindNode()
@@ -272,10 +327,26 @@ FString FStudioDaemon::ExtensionManifestUrl()
 
 bool FStudioDaemon::InstallExtensionAndStart(FString& OutError)
 {
-	return SpawnNpx({
+	const bool bStarted = SpawnNpx({
 		FString::Printf(TEXT("-y %s extension install \"%s\" \"%s\""), *PackageSpec(), *ExtensionManifestUrl(), *ProjectFile()),
 		FString::Printf(TEXT("-y %s daemon start \"%s\""), *PackageSpec(), *ProjectFile()),
 	}, OutError);
+	if (bStarted)
+	{
+		LastInstallStarted = FPlatformTime::Seconds();
+	}
+	return bStarted;
+}
+
+bool FStudioDaemon::InstallExtensionOnce(FString& OutError)
+{
+	// An install downloads, then waits for the old daemon to exit, so one started recently is still under way.
+	if (LastInstallStarted >= 0.0 && FPlatformTime::Seconds() - LastInstallStarted < InstallSettleSeconds)
+	{
+		UE_LOG(LogStudio, Log, TEXT("a Studio install is already under way"));
+		return true;
+	}
+	return InstallExtensionAndStart(OutError);
 }
 
 void FStudioDaemon::EnsureRunning()
@@ -289,18 +360,41 @@ void FStudioDaemon::EnsureRunning()
 	const FString Installed = InstalledExtensionVersion();
 	if (Installed.IsEmpty())
 	{
-		if (!InstallExtensionAndStart(Error))
+		if (!InstallExtensionOnce(Error))
 		{
 			UE_LOG(LogStudio, Warning, TEXT("could not install Studio: %s"), *Error);
 		}
 		return;
 	}
 	FStudioDaemonInfo Info;
-	if (!ReadLive(Info) && !StartDaemon(Error))
+	if (ReadLive(Info))
+	{
+		// A daemon started before the extension was installed runs without it; installing again restarts it with it.
+		CheckExtensionLoaded(Info, [Installed](bool, int32 Code)
+		{
+			if (Code != 404)
+			{
+				CheckForStudioUpdate(Installed);
+				return;
+			}
+			UE_LOG(LogStudio, Log, TEXT("the running daemon has not loaded Studio; installing it again, which restarts the daemon"));
+			FString RestartError;
+			if (!InstallExtensionOnce(RestartError))
+			{
+				UE_LOG(LogStudio, Warning, TEXT("could not restart the daemon with Studio: %s"), *RestartError);
+			}
+		});
+		return;
+	}
+	if (!StartDaemon(Error))
 	{
 		UE_LOG(LogStudio, Warning, TEXT("daemon did not start: %s"), *Error);
 	}
+	CheckForStudioUpdate(Installed);
+}
 
+void FStudioDaemon::CheckForStudioUpdate(const FString& Installed)
+{
 	// A newer release replaces the extension. With the daemon up, Studio's updater installs it, after the turn in progress.
 	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
 	Request->SetURL(ExtensionManifestUrl());

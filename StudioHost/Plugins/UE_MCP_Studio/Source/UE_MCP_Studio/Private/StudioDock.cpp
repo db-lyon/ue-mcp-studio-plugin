@@ -588,9 +588,9 @@ void SStudioDockArea::Construct(const FArguments& InArgs)
 
 EActiveTimerReturnType SStudioDockArea::Refresh(double, float)
 {
-	// Until the daemon runs there is no Studio to show: the setup page and status take the tab.
+	// Until the daemon can serve Studio there is none to show: the setup page and status take the tab.
 	FStudioDaemonInfo Info;
-	const bool bLive = FStudioDaemon::ReadLive(Info);
+	const bool bLive = FStudioDaemon::ReadReady(Info);
 	if (!bLive && !bPanelMade)
 	{
 		// Made once it is needed: it holds a browser view.
@@ -725,6 +725,12 @@ bool FStudioDock::OpenTab()
 	return Tabs.IsValid() && Tabs->TryInvokeTab(TabId).IsValid();
 }
 
+bool FStudioDock::OpenSetupPage()
+{
+	TGuardValue<bool> SetupOnly(DockImpl::bSetupOnly, true);
+	return OpenTab();
+}
+
 void FStudioDock::CloseTab()
 {
 	if (const TSharedPtr<SDockTab> T = DockImpl::Tab.Pin())
@@ -745,7 +751,10 @@ bool FStudioDock::OpenStudio()
 		return true;
 	}
 	// Studio cannot run yet: the dock tab shows the setup page, and a project kept in a window stays so.
-	TGuardValue<bool> SetupOnly(DockImpl::bSetupOnly, DockImpl::SavedMode() == TEXT("window"));
+	if (DockImpl::SavedMode() == TEXT("window"))
+	{
+		return OpenSetupPage();
+	}
 	return OpenTab();
 }
 
