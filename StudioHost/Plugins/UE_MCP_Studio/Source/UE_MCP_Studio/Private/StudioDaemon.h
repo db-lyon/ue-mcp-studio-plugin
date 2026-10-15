@@ -23,6 +23,19 @@ struct FStudioSetupOptions
 	bool bSkills = false;
 };
 
+/** What opening Studio needs next. */
+enum class EStudioOpenStep : uint8
+{
+	/** No install consent: the setup page asks, even when a daemon is running. */
+	AskConsent,
+	/** Install the Studio extension. The install restarts a running daemon so it loads it. */
+	Install,
+	/** Start the daemon. */
+	Start,
+	/** Ask the running daemon for Studio's window. */
+	Open,
+};
+
 /**
  * Finding, starting and talking to the project's ue-mcp daemon.
  *
@@ -44,6 +57,19 @@ public:
 
 	/** The daemon for this project, when its discovery file names a live process. */
 	static bool ReadLive(FStudioDaemonInfo& Out);
+
+	/**
+	 * The daemon, when it can serve Studio: live, with install consent, the Studio extension
+	 * installed and not known to be missing from it. A daemon another MCP client started
+	 * does not count before that.
+	 */
+	static bool ReadReady(FStudioDaemonInfo& Out);
+
+	/** The next step for an open, from consent, whether the extension is installed and whether a daemon is live. */
+	static EStudioOpenStep NextOpenStep(bool bGranted, bool bExtensionInstalled, bool bLive);
+
+	/** Whether the daemon has loaded the Studio extension: a daemon without it answers 404 under /v1/ext/studio. Calls back on the game thread with the status code. */
+	static void CheckExtensionLoaded(const FStudioDaemonInfo& Info, TFunction<void(bool bLoaded, int32 Code)> Done);
 
 	/** Full path of the node executable, or empty when Node is not installed. */
 	static FString FindNode();
@@ -101,6 +127,12 @@ public:
 	static bool InstallExtensionAndStart(FString& OutError);
 
 	/**
+	 * InstallExtensionAndStart, unless an install started in the last minute is still under way.
+	 * The install restarts a running daemon, so it also loads the extension into one without it.
+	 */
+	static bool InstallExtensionOnce(FString& OutError);
+
+	/**
 	 * Hand a newer Studio to the running daemon's updater, which installs it now
 	 * or, while a turn is in progress, once the turn finishes. Installs directly
 	 * when the daemon has no updater to ask.
@@ -125,7 +157,13 @@ public:
 	/** Set when the installed bridge cannot load without an editor restart. */
 	static bool bBridgeNeedsRestart;
 
+	/** A live daemon that answered 404 for the Studio extension, so ReadReady passes it over. */
+	static int32 ExtensionMissingPid;
+
 private:
+	/** Fetch the release manifest and hand a newer Studio than Installed to the updater, or install it. */
+	static void CheckForStudioUpdate(const FString& Installed);
+
 	/** Run each command in turn, detached. Refused without install consent (FStudioConsent). Output appends to the Studio log, or stdout goes to StdoutFile when given. */
 	static bool SpawnNpx(const TArray<FString>& Commands, FString& OutError, const FString& StdoutFile = FString());
 };

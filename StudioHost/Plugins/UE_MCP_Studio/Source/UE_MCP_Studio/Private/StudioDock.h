@@ -51,6 +51,9 @@ public:
 	/** Open the dock tab, or bring it to the front. False when the level editor is not up. */
 	static bool OpenTab();
 
+	/** Show the setup page in the dock tab, keeping the project's mode. */
+	static bool OpenSetupPage();
+
 	/** Close the dock tab when it is open. Studio hides; the mode is kept. */
 	static void CloseTab();
 };

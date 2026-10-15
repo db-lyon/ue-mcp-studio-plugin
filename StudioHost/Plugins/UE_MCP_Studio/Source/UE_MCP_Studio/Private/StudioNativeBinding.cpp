@@ -30,8 +30,9 @@ FString UStudioNativeBinding::GetStatus()
 	Out->SetStringField(TEXT("bridgeOnDisk"), FStudioDaemon::BridgeMarkerKind());
 	Out->SetBoolField(TEXT("bridgeNeedsRestart"), FStudioDaemon::bBridgeNeedsRestart);
 	Out->SetStringField(TEXT("studioVersion"), FStudioDaemon::InstalledExtensionVersion());
+	// Only a daemon that can serve Studio counts; the page offers to start one that can.
 	FStudioDaemonInfo Info;
-	if (FStudioDaemon::ReadLive(Info))
+	if (FStudioDaemon::ReadReady(Info))
 	{
 		TSharedRef<FJsonObject> Daemon = MakeShared<FJsonObject>();
 		Daemon->SetNumberField(TEXT("port"), Info.Port);
@@ -50,9 +51,20 @@ FString UStudioNativeBinding::GetStatus()
 bool UStudioNativeBinding::StartDaemon()
 {
 	FString Error;
+	FStudioDaemonInfo Info;
+	if (FStudioDaemon::ReadLive(Info) && !FStudioDaemon::ReadReady(Info))
+	{
+		// Running without Studio: installing it restarts the daemon with it.
+		if (!FStudioDaemon::InstallExtensionOnce(Error))
+		{
+			UE_LOG(LogStudioBinding, Warning, TEXT("Studio did not install: %s"), *Error);
+			return false;
+		}
+		return true;
+	}
 	if (FStudioDaemon::InstalledExtensionVersion().IsEmpty())
 	{
-		if (!FStudioDaemon::InstallExtensionAndStart(Error))
+		if (!FStudioDaemon::InstallExtensionOnce(Error))
 		{
 			UE_LOG(LogStudioBinding, Warning, TEXT("Studio did not install: %s"), *Error);
 			return false;

@@ -310,7 +310,7 @@ namespace StudioQuickAsk
 				return;
 			}
 			FStudioDaemonInfo Info;
-			if (!FStudioDaemon::ReadLive(Info))
+			if (!FStudioDaemon::ReadReady(Info))
 			{
 				Error = LOCTEXT("NoDaemon", "Studio is not running. Open Studio once, then ask again.");
 				return;
