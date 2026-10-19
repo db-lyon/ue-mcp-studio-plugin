@@ -4,7 +4,7 @@ This declaration covers the UE-MCP Studio editor plugin (`UE_MCP_Studio`, versio
 
 The Fab package contains only the plugin's C++ source, its `.uplugin` and `Resources/web` (the bundled setup page and three fonts). Everything in Sections 3 to 6 is downloaded at first start, and only after the user chooses **Allow** in the plugin's install consent prompt. The plugin never installs Node.js, the WebView2 Runtime or Visual Studio.
 
-No component listed here is under GPL, AGPL, EPL or LGPL. One component is not open source: the Claude Agent SDK and its runtime (Section 6), used only by an optional, experimental sign-in.
+No component listed here is under GPL, AGPL, EPL or LGPL. One component is not open source: the Claude Agent SDK and its runtime (Section 6), used only by an optional sign-in.
 
 ## 1. Shipped in the Fab package
 
@@ -279,10 +279,10 @@ Downloaded from the GitHub releases of db-lyon/ue-mcp-studio (`latest.json`, `st
 
 | Component | Version | License | Use | Source |
 |---|---|---|---|---|
-| @anthropic-ai/claude-agent-sdk (bundled in the Studio extension, listed above) | 0.3.296 | Proprietary: "© Anthropic PBC. All rights reserved. Use is subject to the Legal Agreements outlined here: https://code.claude.com/docs/en/legal-and-compliance." | Runs the experimental Claude subscription sign-in | https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk |
+| @anthropic-ai/claude-agent-sdk (bundled in the Studio extension, listed above) | 0.3.296 | Proprietary: "© Anthropic PBC. All rights reserved. Use is subject to the Legal Agreements outlined here: https://code.claude.com/docs/en/legal-and-compliance." | Runs the optional Claude subscription sign-in | https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk |
 | @anthropic-ai/claude-agent-sdk-win32-x64 (Claude runtime binary) | Matches the SDK version | Same as above | Downloaded from registry.npmjs.org and checked against the registry's integrity hash the first time the user picks the Claude subscription sign-in. Kept in `%USERPROFILE%\.ue-mcp\studio\runtime`. Runs as a separate process | https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk-win32-x64 |
 
-This is the only component that is not open source. It runs only when the user chooses the experimental Claude subscription sign-in.
+This is the only component that is not open source. It runs only when the user chooses the optional Claude subscription sign-in.
 
 ## 7. Network services
 
@@ -292,7 +292,7 @@ This is the only component that is not open source. It runs only when the user c
 | GitHub releases | github.com and its release download hosts | After consent: first start, editor start, updates | Bridge binaries, the Studio extension and its `latest.json`, the editor plugin manifest (`plugin.json`) |
 | GitHub API | api.github.com | Updates on the Beta channel | Lists releases to find the newest prerelease |
 | Anthropic API | api.anthropic.com | The user runs an Anthropic model with an API key | Model calls and the model list |
-| Claude account | Through the Claude runtime | The user picks the experimental Claude subscription sign-in | Sign-in and model calls on the user's Claude plan |
+| Claude account | Through the Claude runtime | The user picks the optional Claude subscription sign-in | Sign-in and model calls on the user's Claude plan |
 | OpenAI API | api.openai.com | The user runs an OpenAI model with an API key or the ChatGPT sign-in | Model calls and the model list |
 | OpenAI sign-in | auth.openai.com | The user signs in with ChatGPT | OAuth sign-in with PKCE; the callback lands on 127.0.0.1 |
 | Google Gemini API | generativelanguage.googleapis.com | The user runs a Google model with an API key | Model calls (OpenAI-compatible endpoint) and the model list |
@@ -356,7 +356,7 @@ Fab's Third Party Software Submission Form (https://docs.google.com/forms/d/e/1F
     - License: proprietary, Anthropic's legal agreements
     - License URL: https://code.claude.com/docs/en/legal-and-compliance
     - Source: https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk
-    - Use: the experimental Claude subscription sign-in only; the runtime is a separate process
+    - Use: the optional Claude subscription sign-in only; the runtime is a separate process
     - Distribution: the SDK is bundled in the Studio extension; the runtime is downloaded from registry.npmjs.org on first use of that sign-in
 
 7. **Microsoft Edge WebView2 Runtime**
