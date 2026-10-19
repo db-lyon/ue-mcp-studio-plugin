@@ -29,7 +29,7 @@ The first time you open Studio, the plugin asks before it downloads or installs 
 - The ue-mcp server from npm, run with npx and kept in npm's cache.
 - The Studio extension (the agent, its UI and Studio's window app) into `%USERPROFILE%\.ue-mcp`, from the UE-MCP Studio GitHub releases.
 
-Models: Studio runs models from Anthropic, OpenAI and Google with your own API key, with a ChatGPT sign-in for OpenAI models, or with an experimental Claude subscription sign-in for Claude models. You need an account or API key with at least one of these providers. Model use is billed or limited by that provider.
+Models: Studio runs models from Anthropic, OpenAI and Google with your own API key, with a ChatGPT sign-in for OpenAI models, or with a Claude subscription sign-in for Claude models, which you choose and which completes on Anthropic's own sign-in page. You need an account or API key with at least one of these providers. Model use is billed or limited by that provider.
 
 Approvals: the agent's shell commands, file writes and file edits wait in the chat for Allow, Allow for this session or Deny. This can be turned off per project.
 
@@ -87,7 +87,7 @@ Documentation: https://ue-mcp.com/docs/studio
 - Requires the Microsoft Edge WebView2 Runtime for Studio's own window (included in Windows 11). Without it, Studio opens in the web browser.
 - At first start, after the user's explicit consent, the plugin downloads and installs the UE-MCP bridge plugin (MIT) into the project, the ue-mcp npm package (MIT) through npx, and the UE-MCP Studio extension (MIT). See the third-party software declaration.
 - Requires an internet connection for the first-start install, updates and model calls.
-- Model use requires the user's own account or API key with Anthropic, OpenAI or Google. The Claude subscription sign-in is experimental.
+- Model use requires the user's own account or API key with Anthropic, OpenAI or Google. The Claude subscription sign-in is optional and completes on Anthropic's own sign-in page in the Claude runtime.
 - The agent can run shell commands and change files in the project folder. By default each command, file write and file edit waits for the user's approval.
 - Visual Studio with the Desktop development with C++ workload is needed only to build the bridge from source; Studio's setup uses prebuilt binaries.
 - Editor only. Not included in packaged builds.
