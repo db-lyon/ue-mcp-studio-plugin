@@ -171,7 +171,7 @@
         };
       } else if (!s.daemon) {
         render('<p><strong>' + spin + (s.studioVersion ? 'Starting the MCP server' : 'Downloading Studio') + '</strong></p>' +
-          '<p class="muted">This takes a few seconds the first time.</p>' +
+          '<p class="muted">This might take a few minutes.</p>' +
           '<div class="actions"><button class="secondary" id="start">Start again</button></div>', 2);
         document.getElementById("start").onclick = function () { call("startdaemon"); };
         schedule();
