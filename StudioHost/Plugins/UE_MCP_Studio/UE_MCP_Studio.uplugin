@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
 	"Version": 14,
-	"VersionName": "0.1.5",
+	"VersionName": "0.1.6-beta.1",
 	"FriendlyName": "UE-MCP Studio",
 	"Description": "The in-editor client for ue-mcp: Studio in its own window, with setup and status in a dock tab.",
 	"Category": "Artificial Intelligence",
