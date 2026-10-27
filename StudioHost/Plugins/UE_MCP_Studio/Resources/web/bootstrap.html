@@ -9,72 +9,136 @@
   @font-face { font-family: "JetBrains Mono"; src: url("fonts/JetBrainsMono.woff2") format("woff2"); font-weight: 100 800; font-display: swap; }
   @font-face { font-family: "Instrument Serif"; src: url("fonts/InstrumentSerif_Italic.woff2") format("woff2"); font-style: italic; font-weight: 400; font-display: swap; }
   :root {
-    --bg: #0c0c0b; --panel: #131312; --panel-2: #1a1a18; --line: rgba(255, 255, 255, 0.07); --line-strong: rgba(255, 255, 255, 0.12);
-    --text: #ece9e3; --muted: #b3b0a8; --dim: #7b7871; --accent: #e8720c; --accent-hi: #f28a2e; --ok: #6cc08b; --bad: #e5604f;
+    --bg: #0c0c0b; --panel: #131312; --panel-2: #1a1a18; --panel-3: #222220; --line: rgba(255, 255, 255, 0.07); --line-strong: rgba(255, 255, 255, 0.12);
+    --text: #ece9e3; --muted: #b3b0a8; --dim: #7b7871; --accent: #e8720c; --accent-hi: #f28a2e; --on-accent: #140a02; --ok: #6cc08b; --bad: #e5604f;
+    --accent-soft: rgba(232, 114, 12, 0.5); --accent-glow: 0 0 8px rgba(232, 114, 12, 0.7); --ok-soft: rgba(108, 192, 139, 0.5);
+    --page-glow: rgba(232, 114, 12, 0.09); --card-tint: rgba(255, 255, 255, 0.02); --card-shadow: 0 24px 48px -28px rgba(0, 0, 0, 0.7);
+    --radius: 6px; --radius-lg: 12px;
     --sans: "Plus Jakarta Sans", system-ui, "Segoe UI", sans-serif;
     --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
     --serif: "Instrument Serif", Georgia, serif;
+    --h1-em: italic 400 42px/1 var(--serif); --h1-em-color: var(--accent); --product-font: italic 400 20px/1 var(--serif);
     color-scheme: dark;
   }
+  /* Editor: the active Slate theme's colors (set from geteditortheme as --ue-*) and Unreal's type, as in Studio's own theme. */
+  :root[data-theme="editor"], :root[data-theme="editor-orange"] {
+    --bg: var(--ue-background, #151515); --panel: var(--ue-panel, #242424); --panel-2: var(--ue-dropdown, #383838); --panel-3: var(--ue-hover, #575757);
+    --line: var(--ue-header, #2f2f2f); --line-strong: var(--ue-dropdownOutline, #4c4c4c);
+    --text: var(--ue-foreground, #c0c0c0);
+    --muted: color-mix(in srgb, var(--ue-foreground, #c0c0c0) 75%, var(--ue-panel, #242424));
+    --dim: color-mix(in srgb, var(--ue-foreground, #c0c0c0) 50%, var(--ue-panel, #242424));
+    --accent: var(--ue-primary, #0070e0); --accent-hi: var(--ue-primaryHover, #0e86ff); --on-accent: #ffffff;
+    --accent-soft: color-mix(in srgb, var(--ue-primary, #0070e0) 55%, transparent); --accent-glow: none;
+    --ok: var(--ue-success, #1fe44b); --bad: var(--ue-error, #ef3535); --ok-soft: color-mix(in srgb, var(--ue-success, #1fe44b) 45%, transparent);
+    --page-glow: transparent; --card-tint: transparent; --card-shadow: none;
+    --radius: 4px; --radius-lg: 4px;
+    --sans: "Roboto", "Segoe UI", system-ui, sans-serif; --mono: Consolas, ui-monospace, monospace;
+    --h1-em: 700 30px/1.1 var(--sans); --h1-em-color: var(--text); --product-font: 700 14px/1 var(--sans);
+  }
+  /* Editor orange: the editor theme with the ue-mcp accent in place of Unreal's blue. */
+  :root[data-theme="editor-orange"] {
+    --accent: #e8720c; --accent-hi: #f28a2e; --on-accent: #140a02; --accent-soft: rgba(232, 114, 12, 0.5);
+  }
+  :root[data-theme="editor"] .brand .mark, :root[data-theme="editor-orange"] .brand .mark { display: none; }
+  :root[data-theme="editor"] .card, :root[data-theme="editor-orange"] .card { border-color: transparent; }
+  :root[data-theme="editor"] button, :root[data-theme="editor-orange"] button { font: 400 12px/1.2 var(--sans); letter-spacing: 0; }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
   body {
     margin: 0; color: var(--text); font: 14px/1.6 var(--sans); -webkit-font-smoothing: antialiased;
-    background: radial-gradient(900px 420px at 50% -120px, rgba(232, 114, 12, 0.09), transparent 70%), var(--bg);
-    display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(900px 420px at 50% -120px, var(--page-glow), transparent 70%), var(--bg);
+    display: flex; align-items: flex-start; justify-content: center;
   }
-  main { width: min(560px, 100%); padding: 32px 20px; }
+  /* Top-aligned, so the heading stays put while the setup pages change height. */
+  main { width: min(560px, 100%); padding: max(32px, 10vh) 20px 32px; }
   .brand { display: flex; align-items: baseline; gap: 8px; margin-bottom: 28px; }
   .brand .mark { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px rgba(232, 114, 12, 0.6); align-self: center; }
   .brand .name { font: 700 14px/1 var(--mono); }
-  .brand .product { font: italic 400 20px/1 var(--serif); color: var(--accent); }
+  .brand .product { font: var(--product-font); color: var(--accent); }
   h1 { font: 700 34px/1.1 var(--sans); letter-spacing: -0.03em; margin: 0 0 8px; }
-  h1 em { font: italic 400 42px/1 var(--serif); color: var(--accent); letter-spacing: -0.01em; }
   .lede { color: var(--muted); margin: 0 0 26px; }
   .steps { display: flex; gap: 6px; margin: 0 0 14px; padding: 0; list-style: none; }
   .steps li {
-    flex: 1; display: flex; align-items: center; gap: 7px; padding-top: 10px; border-top: 2px solid var(--line-strong);
+    flex: 1; display: flex; flex-wrap: wrap; align-items: center; align-content: flex-start; gap: 8px 7px; padding-top: 10px; border-top: 2px solid var(--line-strong);
     font: 500 10.5px/1.3 var(--mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim);
   }
   .steps li::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--dim); }
-  .steps li.done { color: var(--muted); border-top-color: rgba(108, 192, 139, 0.5); }
+  .steps li.done { color: var(--muted); border-top-color: var(--ok-soft); }
   .steps li.done::before { background: var(--ok); }
   .steps li.now { color: var(--text); border-top-color: var(--accent); }
-  .steps li.now::before { background: var(--accent); box-shadow: 0 0 8px rgba(232, 114, 12, 0.7); animation: pulse 1.4s ease-in-out infinite; }
+  .steps li.now::before { background: var(--accent); box-shadow: var(--accent-glow); animation: pulse 1.4s ease-in-out infinite; }
+  /* The setup pages inside Bridge: one thin segment per page under its bar. */
+  .steps .pages { flex-basis: 100%; display: flex; gap: 3px; }
+  .steps .pages i { flex: 1; height: 2px; border-radius: 1px; background: var(--line-strong); }
+  .steps .pages i.done { background: var(--accent-soft); }
+  .steps .pages i.now { background: var(--accent); }
   .card {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 120px), var(--panel);
-    border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; box-shadow: 0 24px 48px -28px rgba(0, 0, 0, 0.7);
+    background: linear-gradient(180deg, var(--card-tint), transparent 120px), var(--panel);
+    border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 20px 22px; box-shadow: var(--card-shadow);
   }
   .card p { margin: 0 0 8px; }
   .card strong { font-size: 16px; letter-spacing: -0.01em; }
+  .card p strong.inline { font-size: inherit; }
   .muted { color: var(--muted); }
   .note { color: var(--dim); font-size: 12px; margin-top: 14px !important; }
   .mono { font-family: var(--mono); font-size: 11.5px; overflow-wrap: anywhere; }
+  .kicker { font: 500 10.5px/1.3 var(--mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); margin: 0 0 12px !important; }
   .actions { display: flex; gap: 8px; margin-top: 16px; }
+  .actions .next { margin-left: auto; }
+  /* A second Next at the top right, so one is always in the same place whatever the page's length. */
+  .pagehead { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -4px 0 12px; }
+  .pagehead .kicker { margin: 0 !important; }
+  .pagehead button { background: transparent; color: var(--accent); border-color: var(--accent); }
+  .pagehead button:hover:not(:disabled) { background: transparent; color: var(--accent-hi); border-color: var(--accent-hi); }
+  /* Setup pages are at least as tall as the first, with the buttons kept at the bottom. */
+  .card.paged { display: flex; flex-direction: column; }
+  .card.paged .actions { margin-top: auto; padding-top: 16px; }
   button {
-    background: var(--accent); color: #140a02; border: 1px solid var(--accent); border-radius: 6px; padding: 9px 18px;
+    background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent); border-radius: var(--radius); padding: 9px 18px;
     font: 600 12px/1.2 var(--mono); letter-spacing: 0.02em; cursor: pointer; transition: background 0.15s, border-color 0.15s;
   }
   button:hover:not(:disabled) { background: var(--accent-hi); border-color: var(--accent-hi); }
   button.secondary { background: var(--panel-2); color: var(--text); border-color: var(--line-strong); font-weight: 500; }
-  button.secondary:hover:not(:disabled) { background: #222220; border-color: rgba(232, 114, 12, 0.35); }
+  button.secondary:hover:not(:disabled) { background: var(--panel-3); border-color: var(--accent-soft); }
   button:disabled { opacity: 0.45; cursor: default; }
+  button:focus-visible, input:focus-visible { outline: 1px solid var(--accent-soft); outline-offset: 2px; }
+  .link { background: none; border: 0; padding: 0; color: var(--accent-hi); font: 500 11.5px/1.4 var(--mono); }
+  .link:hover:not(:disabled) { background: none; text-decoration: underline; }
   .spinner {
     display: inline-block; width: 12px; height: 12px; margin-right: 9px; vertical-align: -1px;
-    border: 2px solid rgba(232, 114, 12, 0.25); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite;
+    border: 2px solid var(--accent-soft); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite;
   }
   .error { color: var(--bad); }
-  .options { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
-  .options .summary { display: flex; align-items: baseline; gap: 10px; color: var(--muted); font-size: 13px; }
-  .options .summary span { flex: 1; }
-  .link { background: none; border: 0; padding: 0; color: var(--accent-hi); font: 500 12px/1.4 var(--mono); }
-  .link:hover:not(:disabled) { background: none; text-decoration: underline; }
-  .choices { margin-top: 12px; display: none; }
-  .choices.open { display: block; }
-  .choices h3 { font: 600 10.5px/1.3 var(--mono); text-transform: uppercase; letter-spacing: 0.14em; color: var(--dim); margin: 12px 0 6px; }
-  .choices label { display: flex; align-items: center; gap: 9px; padding: 4px 0; color: var(--text); cursor: pointer; }
-  .choices label small { color: var(--dim); font-size: 12px; }
-  .choices input { accent-color: var(--accent); width: 14px; height: 14px; margin: 0; }
+  .form h3 { font: 600 10.5px/1.3 var(--mono); text-transform: uppercase; letter-spacing: 0.14em; color: var(--dim); margin: 14px 0 6px; }
+  .form h3:first-child { margin-top: 0; }
+  .form label { display: flex; align-items: flex-start; gap: 9px; padding: 4px 0; color: var(--text); cursor: pointer; min-width: 0; }
+  .form label > span { min-width: 0; }
+  .form label small { display: block; color: var(--dim); font-size: 12px; line-height: 1.4; }
+  .form label.row small { display: inline; margin-left: 6px; }
+  .form label.row > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .form label.off { color: var(--dim); cursor: default; }
+  .form input { accent-color: var(--accent); width: 14px; height: 14px; margin: 3px 0 0; flex: none; }
+  .form .sub { margin-left: 23px; }
+  .form .tag { font: 500 9.5px/1 var(--mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-left: 6px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 12px; }
+  .grid3 label { padding: 2px 0; font-size: 13px; }
+  .facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 14px 0 0; }
+  .facts dt { font: 500 10.5px/1.9 var(--mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim); }
+  .facts dd { margin: 0; min-width: 0; }
+  .facts dd small { display: block; color: var(--dim); font-size: 12px; line-height: 1.4; }
+  .facts.review dd { display: flex; align-items: baseline; gap: 12px; }
+  .facts.review dd > span { flex: 1; min-width: 0; }
+  .box { background: var(--panel-2); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 12px 14px; margin: 8px 0 4px; }
+  .box p:last-child { margin-bottom: 0; }
+  .box .actions { margin-top: 10px; }
+  .code { font: 700 22px/1.2 var(--mono); letter-spacing: 0.14em; color: var(--text); user-select: all; }
+  .done-list { margin-top: 18px; }
+  .result { list-style: none; margin: 8px 0 0; padding: 0; }
+  .result li { display: grid; grid-template-columns: 10px 1fr; column-gap: 9px; padding: 3px 0; font-size: 13px; }
+  .result li::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--dim); margin-top: 7px; }
+  .result li.changed::before { background: var(--ok); }
+  .result li.failed::before { background: var(--bad); }
+  .result li small { grid-column: 2; color: var(--dim); }
   @keyframes pulse { 50% { opacity: 0.35; } }
   @keyframes spin { to { transform: rotate(360deg); } }
 </style>
@@ -82,8 +146,8 @@
 <body>
 <main>
   <div class="brand"><span class="mark"></span><span class="name">ue-mcp</span><span class="product">Studio</span></div>
-  <h1>Getting this project <em>ready</em>.</h1>
-  <p class="lede">Studio sets up its MCP server in this editor once.</p>
+  <h1>Initial Setup</h1>
+  <p class="lede">Every choice here can be changed later.</p>
   <ol class="steps" id="steps"><li>Dependencies</li><li>Bridge</li><li>MCP server</li></ol>
   <div class="card" id="step"><p class="muted"><span class="spinner"></span>Checking</p></div>
 </main>
@@ -96,12 +160,24 @@
   var waiting = null;
   // When Install started (ms); until the bridge lands on disk, keep showing progress.
   var installing = 0;
+  var logPath = "";
 
   // Steps before `stage` show as done and `stage` as current; no stage clears the strip.
-  function render(html, stage) {
+  // `pages` is [current, count] for the setup pages under Bridge, or "done" once they are behind.
+  function render(html, stage, pages) {
     step.innerHTML = html;
+    step.classList.remove("paged");
+    step.style.minHeight = "";
     for (var i = 0; i < stepItems.length; i++) {
       stepItems[i].className = stage === undefined ? "" : i < stage ? "done" : i === stage ? "now" : "";
+      var old = stepItems[i].querySelector(".pages");
+      if (old) old.remove();
+    }
+    var count = pages === "done" ? pagesSeen : pages ? pages[1] : 0;
+    if (count > 1) {
+      var bar = '<span class="pages">';
+      for (var p = 0; p < count; p++) bar += '<i class="' + (pages === "done" || p < pages[0] ? "done" : p === pages[0] ? "now" : "") + '"></i>';
+      stepItems[1].insertAdjacentHTML("beforeend", bar + "</span>");
     }
   }
 
@@ -110,13 +186,25 @@
     return arg === undefined ? studio[name]() : studio[name](arg);
   }
 
+  function esc(t) {
+    return String(t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; });
+  }
+
+  function parseJson(raw) {
+    try { return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+  }
+
   function check() {
     if (!studio) {
       render('<p>This page runs inside the editor. In a browser, open the URL from <span class="mono">npx ue-mcp daemon open</span>.</p>');
       return;
     }
-    call("getstatus").then(function (raw) {
-      var s = JSON.parse(raw);
+    Promise.all([call("getstatus"), call("getsetupresult")]).then(function (got) {
+      var s = JSON.parse(got[0]);
+      var result = parseJson(got[1]);
+      logPath = s.log;
+      // init's result, shown on the screens after Install.
+      var did = result && result.steps ? resultHtml(result) : "";
       if (!s.node) {
         render('<p><strong>Install dependencies</strong></p>' +
           '<p class="muted">The MCP server needs a runtime that is not on this machine yet. Download the recommended installer, run it, then check again.</p>' +
@@ -126,49 +214,34 @@
       } else if (!s.bridgeInstalled && s.bridgeOnDisk === "source") {
         render('<p><strong>Restart to build the bridge</strong></p>' +
           '<p class="muted">The bridge was installed from source, so the editor builds it on the next start.</p>' +
-          '<div class="actions"><button id="restart">Restart editor</button></div>', 1);
+          '<div class="actions"><button id="restart">Restart editor</button></div>' + did, 1, "done");
         document.getElementById("restart").onclick = function () { call("restarteditor"); };
       } else if (!s.bridgeInstalled && s.bridgeOnDisk === "binary" && s.bridgeNeedsRestart) {
         render('<p><strong>Restart to load the bridge</strong></p>' +
           '<p class="muted">The bridge is installed. It needs engine plugins that load only when the editor starts.</p>' +
-          '<div class="actions"><button id="restart">Restart editor</button></div>', 1);
+          '<div class="actions"><button id="restart">Restart editor</button></div>' + did, 1, "done");
         document.getElementById("restart").onclick = function () { call("restarteditor"); };
       } else if (!s.bridgeInstalled && s.bridgeOnDisk === "binary") {
-        render('<p><strong>' + spin + 'Loading the bridge</strong></p><p class="muted">No restart needed.</p>', 1);
+        render('<p><strong>' + spin + 'Loading the bridge</strong></p><p class="muted">No restart needed.</p>' + did, 1, "done");
         schedule();
+      } else if (!s.bridgeInstalled && installing && result && result.ok === false) {
+        // init finished and failed: say so now instead of waiting out the install.
+        installing = 0;
+        render('<p class="error">The setup did not finish' + (result.error ? ": " + esc(result.error) : ".") + '</p>' + did +
+          '<p class="note">The full output is in <span class="mono">' + esc(s.log) + '</span></p>' +
+          '<div class="actions"><button class="secondary" id="back">Back to setup</button></div>', 1, "done");
+        document.getElementById("back").onclick = function () { showPage("review"); };
       } else if (!s.bridgeInstalled && installing && Date.now() - installing > 5 * 60 * 1000) {
         installing = 0;
-        render('<p class="error">The bridge did not install. See <span class="mono">' + s.log + '</span>.</p>' +
-          '<div class="actions"><button id="again">Try again</button></div>', 1);
+        render('<p class="error">The bridge did not install. See <span class="mono">' + esc(s.log) + '</span>.</p>' +
+          '<div class="actions"><button id="again">Try again</button></div>', 1, "done");
         document.getElementById("again").onclick = check;
       } else if (!s.bridgeInstalled && installing) {
-        render('<p><strong>' + spin + 'Installing the bridge</strong></p><p class="muted">This takes a minute.</p>' +
-          '<p class="note">Progress is written to <span class="mono">' + s.log + '</span></p>', 1);
+        render('<p><strong>' + spin + 'Installing the bridge</strong></p><p class="muted">This takes a minute.</p>' + did +
+          '<p class="note">Progress is written to <span class="mono">' + esc(s.log) + '</span></p>', 1, "done");
         schedule();
       } else if (!s.bridgeInstalled) {
-        render('<p><strong>Install the ue-mcp bridge</strong></p>' +
-          '<p class="muted">The bridge plugin lets the MCP server work in this editor. Installing it takes a minute, then the editor restarts once.</p>' +
-          '<div class="actions"><button id="install">Install</button></div>' +
-          '<div class="options"><div class="summary"><span id="summary">' + spin + 'Reading setup options</span>' +
-          '<button class="link" id="toggle" disabled>Options</button></div><div class="choices" id="choices"></div></div>' +
-          '<p class="note">Progress is written to <span class="mono">' + s.log + '</span></p>', 1);
-        loadPlan();
-        document.getElementById("toggle").onclick = function () {
-          var open = document.getElementById("choices").classList.toggle("open");
-          this.textContent = open ? "Hide options" : "Options";
-        };
-        document.getElementById("install").onclick = function () {
-          this.disabled = true;
-          var options = chosenOptions();
-          (options ? call("runsetup", JSON.stringify(options)) : call("installbridge")).then(function (ok) {
-            if (!ok) {
-              render('<p class="error">The install could not start. See <span class="mono">' + s.log + '</span>.</p>', 1);
-              return;
-            }
-            installing = Date.now();
-            check();
-          });
-        };
+        showSetup();
       } else if (!s.daemon) {
         render('<p><strong>' + spin + (s.studioVersion ? 'Starting the MCP server' : 'Downloading Studio') + '</strong></p>' +
           '<p class="muted">This might take a few minutes.</p>' +
@@ -182,34 +255,70 @@
     });
   }
 
-  // The setup plan: init's dry run, read in the background while the Install card shows.
+  // What init did, from its JSON result: one line per step.
+  function resultHtml(r) {
+    var html = '<div class="form done-list"><h3>What setup did</h3></div><ul class="result">';
+    r.steps.forEach(function (st) {
+      var detail = String(st.detail || st.id);
+      // Sentence case, unless the detail starts with a name such as ue-mcp.yml.
+      if (/^[a-z]+(?![a-z.-])/.test(detail)) detail = detail.charAt(0).toUpperCase() + detail.slice(1);
+      html += '<li class="' + esc(st.status) + '"><span>' + esc(detail) +
+        (st.status === "unchanged" ? " <small>(unchanged)</small>" : "") + '</span><small class="mono">' + esc(st.target) + '</small></li>';
+    });
+    (r.warnings || []).forEach(function (w) { html += '<li class="failed"><span>' + esc(w) + '</span></li>'; });
+    return html + "</ul>";
+  }
+
+  // ---- Setup pages: init's choices, one topic per page, read from init's dry-run plan. ----
+
   var plan = null;
   var planStarted = 0;
+  var planFailed = false;
+  // The choices, kept across pages so Back and Next never lose one.
+  var model = null;
+  var current = null;
+  var pagesSeen = 0;
+  // A page to open on, for previews: bootstrap.html#tools.
+  var startPage = (location.hash || "").replace(/^#/, "");
 
-  function esc(t) {
-    return String(t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; });
+  function showSetup() {
+    if (plan) return showPage(current || startPage || "project");
+    if (planFailed) return showNoPlan();
+    render('<div class="pagehead"><p class="kicker">Project</p><button class="next" disabled>Next</button></div><p><strong>Install the ue-mcp bridge</strong></p>' +
+      '<p class="muted">The bridge plugin lets the MCP server work in this editor. Installing it takes a minute, then the editor restarts once.</p>' +
+      '<p class="muted">' + spin + "Reading this project's setup</p>" +
+      '<div class="actions"><button class="next" disabled>Next</button></div>', 1);
+    loadPlan();
   }
 
   function loadPlan() {
-    if (plan) return showPlan();
     if (!planStarted) {
       planStarted = Date.now();
       call("startsetupplan");
     }
     call("getsetupplan").then(function (raw) {
-      var parsed = null;
-      try { parsed = raw ? JSON.parse(raw) : null; } catch (e) { parsed = null; }
+      var parsed = parseJson(raw);
       if (parsed && parsed.plan) {
         plan = parsed.plan;
-        showPlan();
+        model = initialChoices();
+        showPage(startPage || "project");
       } else if (Date.now() - planStarted > 90 * 1000) {
-        // No plan: Install keeps init's defaults.
-        var summary = document.getElementById("summary");
-        if (summary) summary.textContent = "Installs with the default options.";
+        planFailed = true;
+        showNoPlan();
       } else {
         setTimeout(loadPlan, 1000);
       }
     });
+  }
+
+  // No plan: Install keeps init's defaults.
+  function showNoPlan() {
+    render('<p><strong>Install the ue-mcp bridge</strong></p>' +
+      '<p class="muted">The bridge plugin lets the MCP server work in this editor. Installing it takes a minute, then the editor restarts once.</p>' +
+      "<p class=\"muted\">This project's setup options could not be read, so Install uses the default options.</p>" +
+      '<div class="actions"><button id="install">Install</button></div>' +
+      '<p class="note">Progress is written to <span class="mono">' + esc(logPath) + '</span></p>', 1);
+    document.getElementById("install").onclick = function () { install(null); };
   }
 
   function engineAtLeast(v, major, minor) {
@@ -217,50 +326,405 @@
     return !!m && (+m[1] > major || (+m[1] === major && +m[2] >= minor));
   }
 
-  function showPlan() {
-    var summary = document.getElementById("summary");
-    var choices = document.getElementById("choices");
-    if (!summary || !choices) return;
-    var clients = plan.clients.filter(function (c) { return c.detected; });
-    var native = engineAtLeast(plan.project.engine, 5, 8);
-    var html = "<h3>Also connect these MCP clients</h3>";
-    if (clients.length === 0) html += '<p class="note" style="margin-top:0 !important">No other MCP clients found on this machine.</p>';
-    clients.forEach(function (c) {
-      // A global client's config applies to every project, so it is never chosen for the user.
-      var on = c.selected && c.projectScoped;
-      html += '<label><input type="checkbox" data-client="' + esc(c.id) + '"' + (on ? " checked" : "") + "> " + esc(c.name) +
-        (c.projectScoped ? "" : " <small>applies to every project</small>") + "</label>";
-    });
-    if (native) {
-      html += "<h3>Tools</h3><label><input type=\"checkbox\" id=\"native\"" + (plan.nativeTools.enabled ? " checked" : "") + "> Native Unreal tools <small>Epic's own MCP tools, alongside the bridge</small></label>";
-    }
-    choices.innerHTML = html;
-    choices.onchange = summarize;
-    document.getElementById("toggle").disabled = false;
-    summarize();
+  // Native Unreal tools exist from 5.8.
+  function nativeOffered() {
+    return engineAtLeast(plan.project.engine, 5, 8);
   }
 
-  function chosenOptions() {
-    if (!plan) return null;
-    var boxes = document.querySelectorAll("#choices input[data-client]");
-    var clients = [];
-    for (var i = 0; i < boxes.length; i++) if (boxes[i].checked) clients.push(boxes[i].getAttribute("data-client"));
-    var native = document.getElementById("native");
+  // Init's defaults: a re-run keeps the project's choices. Feedback is recommended on for a new project.
+  function initialChoices() {
     return {
-      clients: clients,
-      nativeTools: native ? native.checked : plan.nativeTools.enabled,
+      disable: plan.disable.slice(),
+      native: { enabled: plan.nativeTools.enabled, exclude: plan.nativeTools.exclude.slice() },
       context: plan.contextStrategy,
-      feedback: plan.feedback,
+      // A global client's config applies to every project, so it is never chosen for the user.
+      clients: plan.clients.filter(function (c) { return c.detected && c.selected && c.projectScoped; }).map(function (c) { return c.id; }),
+      feedback: plan.isReInit ? plan.feedback : true,
+      // A mode someone chose is kept; otherwise the recommended one.
+      feedbackMode: plan.feedbackMode && plan.feedbackMode.scope !== "default" && feedbackModeOf(plan.feedbackMode.mode) ? plan.feedbackMode.mode : "auto-approve",
+      hook: plan.promptHook,
       skills: plan.skills,
     };
   }
 
-  function summarize() {
-    var o = chosenOptions();
-    var names = plan.clients.filter(function (c) { return o.clients.indexOf(c.id) >= 0; }).map(function (c) { return c.name; });
-    var text = names.length ? "Also connects " + names.join(", ") + "." : "Connects no other MCP clients.";
-    if (document.getElementById("native")) text += o.nativeTools ? " Native Unreal tools on." : " Native Unreal tools off.";
-    document.getElementById("summary").textContent = text;
+  // The modes `npx ue-mcp feedback mode` sets, named as Studio's settings name them.
+  var FEEDBACK_MODES = [
+    { id: "auto-approve", label: "File automatically", note: "Reports go straight to GitHub.", recommended: true },
+    { id: "interactive", label: "Ask", note: "Edit, approve or discard each report in the chat." },
+    { id: "defer", label: "Hold", note: "Review later with npx ue-mcp feedback review." },
+  ];
+
+  function feedbackModeOf(id) {
+    return FEEDBACK_MODES.filter(function (m) { return m.id === id; })[0] || null;
+  }
+
+  // An older ue-mcp's plan has no feedback mode, and its init has no --feedback-mode.
+  function feedbackModeOffered() {
+    return !!plan.feedbackMode && model.feedback;
+  }
+
+  function claudeCodeChosen() {
+    return model.clients.some(function (id) { return /^claude-code/.test(id); });
+  }
+
+  // Native categories offered: those the plan lists, minus the categories turned off, as init does.
+  function nativeChoices() {
+    return (plan.nativeCategories || []).filter(function (c) { return model.disable.indexOf(c) < 0; });
+  }
+
+  function chosenOptions() {
+    if (!plan) return null;
+    var native = nativeOffered() ? model.native : plan.nativeTools;
+    var exclude = plan.nativeCategories && nativeOffered()
+      ? native.exclude.filter(function (c) { return nativeChoices().indexOf(c) >= 0; })
+      : native.exclude;
+    var cc = claudeCodeChosen();
+    var options = {
+      clients: model.clients.slice(),
+      disable: model.disable.slice(),
+      nativeTools: native.enabled,
+      nativeExclude: exclude.slice(),
+      context: model.context,
+      feedback: model.feedback,
+      hook: cc && model.feedback && model.hook,
+      skills: cc && model.skills,
+    };
+    if (feedbackModeOffered()) options.feedbackMode = model.feedbackMode;
+    return options;
+  }
+
+  function pageList() {
+    var list = [{ id: "project", title: "Project" }];
+    // An older ue-mcp's plan has no category list; its categories stay as they are.
+    if (plan.categories) list.push({ id: "tools", title: "Tools" });
+    if (nativeOffered()) list.push({ id: "native", title: "Native tools" });
+    list.push({ id: "context", title: "Context" });
+    list.push({ id: "clients", title: "MCP clients" });
+    list.push({ id: "agent", title: "Agent" });
+    list.push({ id: "review", title: "Review" });
+    return list;
+  }
+
+  function checkbox(attrs, on, label, note, extra) {
+    return '<label' + (extra || "") + '><input type="checkbox" ' + attrs + (on ? " checked" : "") + "><span>" + label +
+      (note ? " <small>" + note + "</small>" : "") + "</span></label>";
+  }
+
+  var CONTEXTS = [
+    { id: "micro", label: "micro (recommended)", note: "One gateway tool fronts every action. The smallest context." },
+    { id: "lean", label: "lean", note: "Category tools and action names are listed; signatures load when needed." },
+    { id: "full", label: "full", note: "Every action's signature is listed up front. The largest context, with no lookups." },
+  ];
+
+  function portText() {
+    var b = plan.bridge;
+    if (!b) return null;
+    if (b.pinnedBy === "env") return esc(b.port) + "<small>Set by UE_MCP_PORT. The project path gives " + esc(b.derivedPort) + ".</small>";
+    if (b.pinnedBy === "config") return esc(b.port) + "<small>Set by bridge.port in ue-mcp.yml. The project path gives " + esc(b.derivedPort) + ".</small>";
+    return esc(b.port) + "<small>Derived from the project path, so each checkout has its own.</small>";
+  }
+
+  function categoryLabel(name) {
+    var c = (plan.categories || []).filter(function (x) { return x.name === name; })[0];
+    return c ? c.label : name;
+  }
+
+  function contextLabel() {
+    return model.context;
+  }
+
+  function clientNames(ids) {
+    return plan.clients.filter(function (c) { return ids.indexOf(c.id) >= 0; }).map(function (c) { return c.name; });
+  }
+
+  var PAGES = {
+    project: function () {
+      var p = plan.project;
+      var html = '<p><strong>Install the ue-mcp bridge</strong></p>' +
+        '<p class="muted">The bridge plugin lets the MCP server work in this editor. These pages make the same choices as <span class="mono">npx ue-mcp init</span>. Installing takes a minute, then the editor restarts once.</p>' +
+        '<dl class="facts"><dt>Project</dt><dd>' + esc(p.name) + '<small class="mono">' + esc(p.path) + "</small></dd>" +
+        "<dt>Engine</dt><dd>" + esc(p.engine || p.engineAssociation || "Unknown") + "</dd>";
+      var port = portText();
+      if (port) html += "<dt>Bridge port</dt><dd>" + port + "</dd>";
+      html += "<dt>Bridge</dt><dd>" + (plan.install.installedVersion ? "Version " + esc(plan.install.installedVersion) + " installed" : "Not installed yet") +
+        "<small>Studio installs prebuilt binaries.</small></dd></dl>";
+      if (plan.isReInit) html += '<p class="note">This project is already set up. Each page starts from its current choices.</p>';
+      return html + blockersHtml();
+    },
+    tools: function () {
+      var html = '<div class="form"><h3>Tool categories</h3>';
+      plan.categories.forEach(function (c) {
+        var note = c.description || "";
+        if (c.requiredPlugins && c.requiredPlugins.length) note += (note ? ". " : "") + "Needs " + c.requiredPlugins.join(", ");
+        html += checkbox('data-cat="' + esc(c.name) + '"', model.disable.indexOf(c.name) < 0, esc(c.label), esc(note), ' class="row" title="' + esc(note) + '"');
+      });
+      return html + '</div><p class="note">project, editor, reflection and feedback are always on.</p>';
+    },
+    native: function () {
+      var html = '<div class="form"><h3>Native Unreal tools</h3>' +
+        checkbox('id="native-on"', model.native.enabled, "Native Unreal tools", "Epic's own MCP tools from Unreal 5.8, offered as actions in the matching categories");
+      if (plan.nativeCategories) {
+        var offer = nativeChoices();
+        html += "<h3>Include them in these categories</h3>";
+        if (offer.length === 0) html += '<p class="note">Every category that has native tools is turned off.</p>';
+        html += '<div class="grid3">';
+        offer.forEach(function (c) {
+          html += checkbox('data-native="' + esc(c) + '"' + (model.native.enabled ? "" : " disabled"),
+            model.native.enabled && model.native.exclude.indexOf(c) < 0, esc(c), "", model.native.enabled ? "" : ' class="off"');
+        });
+        html += "</div>";
+      }
+      return html + "</div>";
+    },
+    context: function () {
+      var html = '<div class="form"><h3>Context strategy</h3><p class="muted" style="margin-bottom:8px">How much of the tool surface the agent sees at the start of a session.</p>';
+      CONTEXTS.forEach(function (c) {
+        html += '<label><input type="radio" name="context" value="' + c.id + '"' + (model.context === c.id ? " checked" : "") + "><span>" + c.label +
+          (plan.isReInit && plan.contextStrategy === c.id ? '<span class="tag">Current</span>' : "") + "<small>" + esc(c.note) + "</small></span></label>";
+      });
+      return html + "</div>";
+    },
+    clients: function () {
+      var clients = plan.clients.filter(function (c) { return c.detected; });
+      var html = '<div class="form"><h3>Also connect these MCP clients</h3>';
+      if (clients.length === 0) html += '<p class="note" style="margin-top:0 !important">No other MCP clients found on this machine.</p>';
+      clients.forEach(function (c) {
+        html += checkbox('data-client="' + esc(c.id) + '"', model.clients.indexOf(c.id) >= 0, esc(c.name), c.projectScoped ? "" : "applies to every project", ' class="row"');
+      });
+      return html + '</div><p class="note">Studio connects to this project on its own. These are the other MCP clients on this machine.</p>';
+    },
+    agent: function () {
+      // The Claude Code hook and skills are not offered here; the project's current choices are sent unchanged.
+      var html = '<div class="form"><h3>Feedback</h3>' +
+        checkbox('id="feedback"', model.feedback, "Report ue-mcp gaps", "Recommended. Agents file GitHub issues on ue-mcp when a tool is missing or falls short. Your project name, its folder paths and your username are removed from every issue first. Asset and actor names are kept.");
+      if (feedbackModeOffered()) {
+        html += '<div class="sub">';
+        FEEDBACK_MODES.forEach(function (m) {
+          html += '<label><input type="radio" name="feedback-mode" value="' + m.id + '"' + (model.feedbackMode === m.id ? " checked" : "") + "><span>" + m.label + (m.recommended ? " (recommended)" : "") +
+            (plan.isReInit && plan.feedbackMode.mode === m.id ? '<span class="tag">Current</span>' : "") + "<small>" + esc(m.note) + "</small></span></label>";
+        });
+        html += "</div>";
+      }
+      if (model.feedback) html += authHtml();
+      html += "</div>";
+      return html;
+    },
+    review: function () {
+      var o = chosenOptions();
+      var rows = [["Project", esc(plan.project.name) + (plan.project.engine ? ", Unreal " + esc(plan.project.engine) : ""), "project"]];
+      if (plan.categories) {
+        var off = plan.categories.filter(function (c) { return o.disable.indexOf(c.name) >= 0; });
+        rows.push(["Tools", off.length === 0 ? "Enabled (All categories)"
+          : "Enabled (" + (plan.categories.length - off.length) + " of " + plan.categories.length + " categories)<small>Off: " + esc(off.map(function (c) { return c.label; }).join(", ")) + "</small>", "tools"]);
+      }
+      if (nativeOffered()) {
+        var nativeAll = nativeChoices().length;
+        rows.push(["Native tools", !o.nativeTools ? "Disabled" : o.nativeExclude.length === 0 ? "Enabled (All categories)"
+          : (nativeAll ? "Enabled (" + (nativeAll - o.nativeExclude.length) + " of " + nativeAll + " categories)" : "Enabled") + "<small>Off: " + esc(o.nativeExclude.join(", ")) + "</small>", "native"]);
+      }
+      rows.push(["Context", esc(o.context), "context"]);
+      var names = clientNames(o.clients);
+      rows.push(["MCP clients", names.length ? esc(names.join(", ")) : "No other clients", "clients"]);
+      var login = signedInAs();
+      rows.push(["Feedback", o.feedback ? "Reports ue-mcp gaps" + (login ? "<small>As @" + esc(login) + " on GitHub</small>" : "") : "Off", "agent"]);
+      if (o.feedbackMode) {
+        var mode = feedbackModeOf(o.feedbackMode);
+        rows.push(["Feedback mode", mode.label + "<small>" + esc(mode.note) + "</small>", "agent"]);
+      }
+      var html = '<p><strong>Review and install</strong></p><dl class="facts review">';
+      rows.forEach(function (r) {
+        html += "<dt>" + r[0] + "</dt><dd><span>" + r[1] + '</span><button class="link" data-goto="' + r[2] + '">Change</button></dd>';
+      });
+      return html + "</dl>" + blockersHtml() + '<p class="note">Progress is written to <span class="mono">' + esc(logPath) + "</span></p>";
+    },
+  };
+
+  function blockersHtml() {
+    return (plan.blockers || []).map(function (b) { return '<p class="error">' + esc(b) + "</p>"; }).join("");
+  }
+
+  function showPage(id) {
+    if (!plan) return showSetup();
+    var list = pageList();
+    var i = 0;
+    for (var k = 0; k < list.length; k++) if (list[k].id === id) i = k;
+    current = list[i].id;
+    pagesSeen = list.length;
+    var last = i === list.length - 1;
+    render(pageHtml(list, i), 1, [i, list.length]);
+    step.classList.add("paged");
+    step.style.minHeight = firstPageHeight(list) + "px";
+    if (i > 0) document.getElementById("back").onclick = function () { showPage(list[i - 1].id); };
+    var go = last ? function () {
+      document.getElementById("next").disabled = document.getElementById("next-top").disabled = true;
+      install(chosenOptions());
+    } : function () { showPage(list[i + 1].id); };
+    document.getElementById("next").onclick = document.getElementById("next-top").onclick = go;
+    var page = document.getElementById("page");
+    page.onchange = onChoice;
+    page.onclick = onPageClick;
+    // Enter on a fresh page presses Next, so the pages can be walked from the keyboard. Focus
+    // would scroll to the button, so each page opens at the top instead.
+    document.getElementById("next").focus({ preventScroll: true });
+    window.scrollTo(0, 0);
+  }
+
+  function pageHtml(list, i) {
+    var label = i === list.length - 1 ? "Confirm" : "Next";
+    return '<div class="pagehead"><p class="kicker">' + esc(list[i].title) + ", " + (i + 1) + " of " + list.length + "</p>" +
+      '<button class="next" id="next-top">' + label + "</button></div>" +
+      '<div id="page">' + PAGES[list[i].id]() + "</div>" +
+      '<div class="actions">' + (i > 0 ? '<button class="secondary" id="back">Back</button>' : "") +
+      '<button class="next" id="next">' + label + "</button></div>";
+  }
+
+  // The first page's height at the card's current width, laid out off screen.
+  function firstPageHeight(list) {
+    var probe = step.cloneNode(false);
+    probe.removeAttribute("id");
+    probe.style.cssText = "position:absolute;visibility:hidden;left:-9999px;top:0;min-height:0;width:" + step.getBoundingClientRect().width + "px";
+    probe.innerHTML = pageHtml(list, 0).replace(/ id="[^"]*"/g, "");
+    document.body.appendChild(probe);
+    var h = probe.getBoundingClientRect().height;
+    probe.remove();
+    return Math.ceil(h);
+  }
+
+  // Redraw the current page in place, keeping focus on the control that had it.
+  function redraw() {
+    var focused = document.activeElement;
+    var key = focused && focused.tagName === "INPUT" ? (focused.id ? "#" + focused.id : focused.getAttribute("data-cat") ? '[data-cat="' + focused.getAttribute("data-cat") + '"]'
+      : focused.getAttribute("data-native") ? '[data-native="' + focused.getAttribute("data-native") + '"]' : null) : null;
+    var page = document.getElementById("page");
+    if (!page) return;
+    page.innerHTML = PAGES[current]();
+    var again = key && page.querySelector(key);
+    if (again) again.focus();
+  }
+
+  function toggle(list, item, on) {
+    var at = list.indexOf(item);
+    if (on && at < 0) list.push(item);
+    if (!on && at >= 0) list.splice(at, 1);
+  }
+
+  function onChoice(e) {
+    var t = e.target;
+    if (t.getAttribute("data-cat")) toggle(model.disable, t.getAttribute("data-cat"), !t.checked);
+    else if (t.getAttribute("data-native")) toggle(model.native.exclude, t.getAttribute("data-native"), !t.checked);
+    else if (t.getAttribute("data-client")) toggle(model.clients, t.getAttribute("data-client"), t.checked);
+    else if (t.name === "context") model.context = t.value;
+    else if (t.id === "native-on") model.native.enabled = t.checked;
+    else if (t.id === "feedback") model.feedback = t.checked;
+    else if (t.name === "feedback-mode") model.feedbackMode = t.value;
+    else if (t.id === "hook") model.hook = t.checked;
+    else if (t.id === "skills") model.skills = t.checked;
+    // These change what else the page shows.
+    if (t.id === "native-on" || t.id === "feedback") redraw();
+  }
+
+  function onPageClick(e) {
+    var t = e.target.closest ? e.target.closest("button") : null;
+    if (!t) return;
+    if (t.getAttribute("data-goto")) showPage(t.getAttribute("data-goto"));
+    else if (t.id === "signin") startSignIn();
+    else if (t.id === "opengithub") call("opengithubsignin");
+  }
+
+  // Enter moves on, as Next (or Install on the last page) does.
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Enter" || !current || !document.getElementById("page")) return;
+    var tag = e.target && e.target.tagName;
+    if (tag === "BUTTON" || tag === "A" || tag === "TEXTAREA") return;
+    var next = document.getElementById("next");
+    if (next && !next.disabled) {
+      e.preventDefault();
+      next.click();
+    }
+  });
+
+  function install(options) {
+    current = null;
+    (options ? call("runsetup", JSON.stringify(options)) : call("installbridge")).then(function (ok) {
+      if (!ok) {
+        render('<p class="error">The install could not start. See <span class="mono">' + esc(logPath) + '</span>.</p>' +
+          (options ? '<div class="actions"><button class="secondary" id="back">Back to setup</button></div>' : ""), 1, "done");
+        if (options) document.getElementById("back").onclick = function () { showPage("review"); };
+        return;
+      }
+      installing = Date.now();
+      check();
+    });
+  }
+
+  // ---- GitHub sign-in for feedback, through `ue-mcp auth --json`. ----
+
+  var auth = { state: "idle" };
+
+  function signedInAs() {
+    return auth.login || (plan.feedbackAuth && plan.feedbackAuth.login) || null;
+  }
+
+  function authHtml() {
+    // An older ue-mcp cannot run the sign-in for the page.
+    if (!plan.feedbackAuth || auth.state === "unavailable") {
+      return '<p class="note" style="margin-top:4px !important">To file issues as your GitHub account, run <span class="mono">npx ue-mcp auth</span> in a terminal.</p>';
+    }
+    var login = signedInAs();
+    if (login) return '<div class="box"><p>Signed in to GitHub as <strong class="inline">@' + esc(login) + "</strong>. Issues are filed as this account.</p></div>";
+    if (auth.state === "starting") return '<div class="box"><p class="muted">' + spin + "Starting the GitHub sign-in</p></div>";
+    if (auth.state === "code") {
+      return '<div class="box"><p>Open <span class="mono">' + esc(auth.uri) + "</span> and enter this code:</p>" +
+        '<p class="code">' + esc(auth.code) + "</p>" +
+        '<div class="actions"><button class="secondary" id="opengithub">Open GitHub</button></div>' +
+        '<p class="note">' + spin + "Waiting for GitHub. This page updates when you approve the sign-in.</p></div>";
+    }
+    var failed = auth.state === "failed"
+      ? '<p class="error">' + esc(auth.reason === "denied" ? "The sign-in was declined on GitHub." : auth.reason === "expired" || auth.reason === "timeout"
+        ? "The code expired before it was entered." : "The sign-in failed" + (auth.message ? ": " + auth.message : ".")) + "</p>"
+      : "";
+    return '<div class="box"><p class="muted">Sign in to file ue-mcp issues with your GitHub account. Optional: if you skip it, issues will be submitted anonymously on your behalf.</p>' +
+      failed + '<div class="actions"><button class="secondary" id="signin">' + (failed ? "Try again" : "Sign in with GitHub") + "</button></div></div>";
+  }
+
+  function setAuth(next) {
+    auth = next;
+    if (current === "agent") redraw();
+  }
+
+  function startSignIn() {
+    var started = Date.now();
+    setAuth({ state: "starting" });
+    call("startfeedbackauth").then(function (ok) {
+      if (!ok) return setAuth({ state: "unavailable" });
+      (function poll() {
+        call("getfeedbackauth").then(function (text) {
+          var last = null;
+          String(text || "").split(/\r?\n/).forEach(function (line) {
+            var e = parseJson(line.trim());
+            if (e && e.event) last = e;
+          });
+          if (last && last.event === "signed-in") return setAuth({ state: "signed-in", login: last.login });
+          if (last && last.event === "failed") return setAuth({ state: "failed", reason: last.reason, message: last.message });
+          if (last && last.event === "code" && auth.state !== "code") setAuth({ state: "code", uri: last.verificationUri, code: last.userCode });
+          // npx may download ue-mcp first, but a minute with no code means the sign-in is not coming.
+          if (!last && Date.now() - started > 60 * 1000) return setAuth({ state: "unavailable" });
+          setTimeout(poll, 1500);
+        });
+      })();
+    });
+  }
+
+  // ---- Theme: Studio's, from its settings for this project. ----
+
+  function applyTheme(name) {
+    if (name !== "editor" && name !== "editor-orange") return;
+    var root = document.documentElement;
+    root.setAttribute("data-theme", name);
+    call("geteditortheme").then(function (raw) {
+      var colors = parseJson(raw) || {};
+      Object.keys(colors).forEach(function (k) { root.style.setProperty("--ue-" + k, colors[k]); });
+    });
   }
 
   // While waiting on the daemon, keep checking; the panel switches to the UI when it is up.
@@ -269,6 +733,7 @@
     waiting = setTimeout(check, 2000);
   }
 
+  call("getstudiotheme").then(applyTheme);
   check();
 </script>
 </body>

@@ -38,11 +38,28 @@ public:
 
 	/**
 	 * Run `ue-mcp init` with the page's choices, as JSON:
-	 * { clients: string[], nativeTools: bool, context?: "micro"|"lean"|"full", feedback: bool, skills: bool }.
-	 * Unknown clients or values are refused.
+	 * { clients: string[], disable: string[], nativeTools: bool, nativeExclude: string[],
+	 *   context?: "micro"|"lean"|"full", feedback: bool, hook: bool, skills: bool }.
+	 * Unknown clients, contexts or malformed category names are refused.
 	 */
 	UFUNCTION()
 	bool RunSetup(const FString& OptionsJson);
+
+	/** init's JSON result after RunSetup ({ ok, error?, steps, warnings }), or an empty string while it runs. */
+	UFUNCTION()
+	FString GetSetupResult();
+
+	/** Start the GitHub sign-in feedback issues author with (`ue-mcp auth --json`). */
+	UFUNCTION()
+	bool StartFeedbackAuth();
+
+	/** The sign-in's progress so far: the JSON lines `ue-mcp auth --json` has printed. */
+	UFUNCTION()
+	FString GetFeedbackAuth();
+
+	/** The theme picked in Studio's settings for this project ("ue-mcp", "editor" or "editor-orange"), "ue-mcp" when none is. */
+	UFUNCTION()
+	FString GetStudioTheme();
 
 	UFUNCTION()
 	bool RestartEditor();
@@ -58,9 +75,13 @@ public:
 	UFUNCTION()
 	FString GetEditorTheme();
 
-	/** Open the Node.js download page in the system browser. The only external address the page can open. */
+	/** Open the Node.js download page in the system browser. */
 	UFUNCTION()
 	bool OpenNodeDownload();
+
+	/** Open GitHub's device sign-in page in the system browser. With OpenNodeDownload, the only external addresses the page can open. */
+	UFUNCTION()
+	bool OpenGitHubSignIn();
 
 	/**
 	 * A turn finished while the user was elsewhere: show the message as an editor
