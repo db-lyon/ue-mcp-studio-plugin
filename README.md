@@ -21,6 +21,7 @@ Studio's **Settings > Update** keeps the plugin, the Studio extension and ue-mcp
 - `StudioHost/Plugins/UE_MCP_Studio/` - the plugin.
 - `StudioHost/` - the project used to build it.
 - `scripts/release.mjs` - builds the plugin for each engine and publishes a release with every engine's zip and `plugin.json`, the manifest Studio's updater reads.
+- `scripts/setup-preview.mjs` - serves the setup page at http://localhost:5180 with a fake editor binding and a scenario picker, so every step can be seen without an editor. `--project <.uproject>` uses that project's real `ue-mcp init --dry-run` plan.
 
 ## Releasing
 
