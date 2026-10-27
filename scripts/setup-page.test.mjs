@@ -243,6 +243,20 @@ test("choices persist across Back and Next, Enter moves on, and Change returns t
   await ui.close();
 });
 
+test("the top Next moves on like the bottom one, and reads Install on the last page", async () => {
+  const ui = open("install-new");
+  await ready(ui);
+  for (let i = 1; i < 7; i++) {
+    assert.equal(ui.$("#next-top").textContent, "Next");
+    ui.$("#next-top").click();
+    assert.equal(ui.kicker(), `${NEW_PAGES[i]}, ${i + 1} of 7`);
+  }
+  assert.equal(ui.$("#next-top").textContent, "Install");
+  ui.$("#next-top").click();
+  assert.ok(ui.sent(), "Install sent the choices");
+  await ui.close();
+});
+
 test("UE 5.7: no native tools page, and the project's native settings are sent unchanged", async () => {
   const ui = open("install-57");
   await ready(ui);

@@ -85,6 +85,9 @@
   .kicker { font: 500 10.5px/1.3 var(--mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); margin: 0 0 12px !important; }
   .actions { display: flex; gap: 8px; margin-top: 16px; }
   .actions .next { margin-left: auto; }
+  /* A second Next at the top right, so one is always in the same place whatever the page's length. */
+  .pagehead { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -4px 0 12px; }
+  .pagehead .kicker { margin: 0 !important; }
   /* Setup pages are at least as tall as the first, with the buttons kept at the bottom. */
   .card.paged { display: flex; flex-direction: column; }
   .card.paged .actions { margin-top: auto; padding-top: 16px; }
@@ -279,7 +282,7 @@
   function showSetup() {
     if (plan) return showPage(current || startPage || "project");
     if (planFailed) return showNoPlan();
-    render('<p class="kicker">Project</p><p><strong>Install the ue-mcp bridge</strong></p>' +
+    render('<div class="pagehead"><p class="kicker">Project</p><button class="next" disabled>Next</button></div><p><strong>Install the ue-mcp bridge</strong></p>' +
       '<p class="muted">The bridge plugin lets the MCP server work in this editor. Installing it takes a minute, then the editor restarts once.</p>' +
       '<p class="muted">' + spin + "Reading this project's setup</p>" +
       '<div class="actions"><button class="next" disabled>Next</button></div>', 1);
@@ -560,7 +563,11 @@
     step.classList.add("paged");
     step.style.minHeight = firstPageHeight(list) + "px";
     if (i > 0) document.getElementById("back").onclick = function () { showPage(list[i - 1].id); };
-    document.getElementById("next").onclick = last ? function () { this.disabled = true; install(chosenOptions()); } : function () { showPage(list[i + 1].id); };
+    var go = last ? function () {
+      document.getElementById("next").disabled = document.getElementById("next-top").disabled = true;
+      install(chosenOptions());
+    } : function () { showPage(list[i + 1].id); };
+    document.getElementById("next").onclick = document.getElementById("next-top").onclick = go;
     var page = document.getElementById("page");
     page.onchange = onChoice;
     page.onclick = onPageClick;
@@ -571,10 +578,12 @@
   }
 
   function pageHtml(list, i) {
-    return '<p class="kicker">' + esc(list[i].title) + ", " + (i + 1) + " of " + list.length + "</p>" +
+    var label = i === list.length - 1 ? "Install" : "Next";
+    return '<div class="pagehead"><p class="kicker">' + esc(list[i].title) + ", " + (i + 1) + " of " + list.length + "</p>" +
+      '<button class="next" id="next-top">' + label + "</button></div>" +
       '<div id="page">' + PAGES[list[i].id]() + "</div>" +
       '<div class="actions">' + (i > 0 ? '<button class="secondary" id="back">Back</button>' : "") +
-      '<button class="next" id="next">' + (i === list.length - 1 ? "Install" : "Next") + "</button></div>";
+      '<button class="next" id="next">' + label + "</button></div>";
   }
 
   // The first page's height at the card's current width, laid out off screen.
