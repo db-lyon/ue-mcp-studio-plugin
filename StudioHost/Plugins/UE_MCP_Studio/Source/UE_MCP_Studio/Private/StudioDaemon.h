@@ -77,8 +77,25 @@ public:
 	/** Whether the ue-mcp bridge plugin is present in this project or the engine. */
 	static bool IsBridgeInstalled();
 
-	/** ue-mcp@<the installed bridge's version>, so the server and the bridge move together; the release manifest's ueMcp.package when there is no bridge or it is older than ueMcp.min. */
+	/** ChoosePackageSpec over the installed bridge, the cached release manifest and the installed extension's ue-mcp minimum. */
 	static FString PackageSpec();
+
+	/**
+	 * The ue-mcp spec for a bridge version, the manifest's minimum and package, and the
+	 * installed extension's own ue-mcp minimum. An extension that needs a newer ue-mcp
+	 * than the bridge gets that version, since a daemon older than it refuses to load it.
+	 */
+	static FString ChoosePackageSpec(const FString& BridgeVersion, const FString& ManifestMin, const FString& ManifestPackage, const FString& ExtensionMin);
+
+	/**
+	 * Whether a reinstall from the channel would replace the installed extension with an
+	 * older one: a prerelease ahead of the channel's version, or of the stable channel when
+	 * that version is not known yet.
+	 */
+	static bool ChannelWouldDowngrade(const FString& Installed, const FString& ChannelVersion);
+
+	/** Semver order over X.Y.Z[-pre.N]; a prerelease sorts below its release. */
+	static int32 CompareVersions(const FString& A, const FString& B);
 
 	/**
 	 * Start the daemon with `npx ue-mcp daemon start <uproject>`, detached and
@@ -116,6 +133,12 @@ public:
 
 	/** Version of the installed Studio extension, or empty when it is not installed. */
 	static FString InstalledExtensionVersion();
+
+	/** The ue-mcp version the installed Studio extension needs (ueMcpExtension.ueMcp), or empty. */
+	static FString InstalledExtensionUeMcpMin();
+
+	/** The installed bridge's version as on disk (its install marker, else its descriptor), else as loaded. */
+	static FString InstalledBridgeVersion();
 
 	/** The release manifest the extension installs from. UE_MCP_STUDIO_CHANNEL overrides it. */
 	static FString ExtensionManifestUrl();
