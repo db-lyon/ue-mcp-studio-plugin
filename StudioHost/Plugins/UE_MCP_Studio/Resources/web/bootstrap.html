@@ -85,6 +85,9 @@
   .kicker { font: 500 10.5px/1.3 var(--mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); margin: 0 0 12px !important; }
   .actions { display: flex; gap: 8px; margin-top: 16px; }
   .actions .next { margin-left: auto; }
+  /* Setup pages are at least as tall as the first, with the buttons kept at the bottom. */
+  .card.paged { display: flex; flex-direction: column; }
+  .card.paged .actions { margin-top: auto; padding-top: 16px; }
   button {
     background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent); border-radius: var(--radius); padding: 9px 18px;
     font: 600 12px/1.2 var(--mono); letter-spacing: 0.02em; cursor: pointer; transition: background 0.15s, border-color 0.15s;
@@ -157,6 +160,8 @@
   // `pages` is [current, count] for the setup pages under Bridge, or "done" once they are behind.
   function render(html, stage, pages) {
     step.innerHTML = html;
+    step.classList.remove("paged");
+    step.style.minHeight = "";
     for (var i = 0; i < stepItems.length; i++) {
       stepItems[i].className = stage === undefined ? "" : i < stage ? "done" : i === stage ? "now" : "";
       var old = stepItems[i].querySelector(".pages");
@@ -518,10 +523,9 @@
     current = list[i].id;
     pagesSeen = list.length;
     var last = i === list.length - 1;
-    render('<p class="kicker">' + esc(list[i].title) + ", " + (i + 1) + " of " + list.length + "</p>" +
-      '<div id="page">' + PAGES[current]() + "</div>" +
-      '<div class="actions">' + (i > 0 ? '<button class="secondary" id="back">Back</button>' : "") +
-      '<button class="next" id="next">' + (last ? "Install" : "Next") + "</button></div>", 1, [i, list.length]);
+    render(pageHtml(list, i), 1, [i, list.length]);
+    step.classList.add("paged");
+    step.style.minHeight = firstPageHeight(list) + "px";
     if (i > 0) document.getElementById("back").onclick = function () { showPage(list[i - 1].id); };
     document.getElementById("next").onclick = last ? function () { this.disabled = true; install(chosenOptions()); } : function () { showPage(list[i + 1].id); };
     var page = document.getElementById("page");
@@ -531,6 +535,25 @@
     // would scroll to the button, so each page opens at the top instead.
     document.getElementById("next").focus({ preventScroll: true });
     window.scrollTo(0, 0);
+  }
+
+  function pageHtml(list, i) {
+    return '<p class="kicker">' + esc(list[i].title) + ", " + (i + 1) + " of " + list.length + "</p>" +
+      '<div id="page">' + PAGES[list[i].id]() + "</div>" +
+      '<div class="actions">' + (i > 0 ? '<button class="secondary" id="back">Back</button>' : "") +
+      '<button class="next" id="next">' + (i === list.length - 1 ? "Install" : "Next") + "</button></div>";
+  }
+
+  // The first page's height at the card's current width, laid out off screen.
+  function firstPageHeight(list) {
+    var probe = step.cloneNode(false);
+    probe.removeAttribute("id");
+    probe.style.cssText = "position:absolute;visibility:hidden;left:-9999px;top:0;min-height:0;width:" + step.getBoundingClientRect().width + "px";
+    probe.innerHTML = pageHtml(list, 0).replace(/ id="[^"]*"/g, "");
+    document.body.appendChild(probe);
+    var h = probe.getBoundingClientRect().height;
+    probe.remove();
+    return Math.ceil(h);
   }
 
   // Redraw the current page in place, keeping focus on the control that had it.
