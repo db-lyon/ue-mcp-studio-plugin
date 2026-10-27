@@ -141,8 +141,38 @@ bool UStudioNativeBinding::RunSetup(const FString& OptionsJson)
 			Options.Clients.AddUnique(Id);
 		}
 	}
+	// Category names go on a command line, so only plain lowercase names pass.
+	auto ReadCategories = [&In](const TCHAR* Field, TArray<FString>& Out)
+	{
+		const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
+		if (!In->TryGetArrayField(Field, Values))
+		{
+			return true;
+		}
+		for (const TSharedPtr<FJsonValue>& Value : *Values)
+		{
+			const FString Name = Value->AsString();
+			bool bPlain = !Name.IsEmpty();
+			for (const TCHAR C : Name)
+			{
+				bPlain &= (C >= TEXT('a') && C <= TEXT('z')) || C == TEXT('_');
+			}
+			if (!bPlain)
+			{
+				UE_LOG(LogStudioBinding, Warning, TEXT("refused tool category '%s'"), *Name);
+				return false;
+			}
+			Out.AddUnique(Name);
+		}
+		return true;
+	};
+	if (!ReadCategories(TEXT("disable"), Options.Disable) || !ReadCategories(TEXT("nativeExclude"), Options.NativeExclude))
+	{
+		return false;
+	}
 	In->TryGetBoolField(TEXT("nativeTools"), Options.bNativeTools);
 	In->TryGetBoolField(TEXT("feedback"), Options.bFeedback);
+	In->TryGetBoolField(TEXT("hook"), Options.bHook);
 	In->TryGetBoolField(TEXT("skills"), Options.bSkills);
 	if (In->TryGetStringField(TEXT("context"), Options.Context) && !KnownContexts.Contains(Options.Context))
 	{
@@ -157,6 +187,48 @@ bool UStudioNativeBinding::RunSetup(const FString& OptionsJson)
 		return false;
 	}
 	return true;
+}
+
+FString UStudioNativeBinding::GetSetupResult()
+{
+	FString Text;
+	if (!FFileHelper::LoadFileToString(Text, *FStudioDaemon::SetupResultPath()))
+	{
+		return FString();
+	}
+	TSharedPtr<FJsonObject> Parsed;
+	return FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Parsed) && Parsed.IsValid() ? Text : FString();
+}
+
+bool UStudioNativeBinding::StartFeedbackAuth()
+{
+	FString Error;
+	if (!FStudioDaemon::StartFeedbackAuth(Error))
+	{
+		UE_LOG(LogStudioBinding, Warning, TEXT("GitHub sign-in did not start: %s"), *Error);
+		return false;
+	}
+	return true;
+}
+
+FString UStudioNativeBinding::GetFeedbackAuth()
+{
+	FString Text;
+	FFileHelper::LoadFileToString(Text, *FStudioDaemon::FeedbackAuthPath());
+	return Text;
+}
+
+FString UStudioNativeBinding::GetStudioTheme()
+{
+	FString Json;
+	FString Name;
+	TSharedPtr<FJsonObject> Settings;
+	if (FFileHelper::LoadFileToString(Json, *FStudioDaemon::StudioSettingsPath())
+		&& FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), Settings) && Settings.IsValid())
+	{
+		Settings->TryGetStringField(TEXT("theme"), Name);
+	}
+	return Name == TEXT("editor") || Name == TEXT("editor-orange") ? Name : FString(TEXT("ue-mcp"));
 }
 
 bool UStudioNativeBinding::RestartEditor()
@@ -195,6 +267,12 @@ bool UStudioNativeBinding::OpenProjectFolder()
 bool UStudioNativeBinding::OpenNodeDownload()
 {
 	FPlatformProcess::LaunchURL(TEXT("https://nodejs.org/en/download"), nullptr, nullptr);
+	return true;
+}
+
+bool UStudioNativeBinding::OpenGitHubSignIn()
+{
+	FPlatformProcess::LaunchURL(TEXT("https://github.com/login/device"), nullptr, nullptr);
 	return true;
 }
 

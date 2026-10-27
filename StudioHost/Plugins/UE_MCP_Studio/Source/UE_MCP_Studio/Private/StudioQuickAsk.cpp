@@ -123,8 +123,7 @@ namespace StudioQuickAsk
 	FPillTheme ReadTheme()
 	{
 		FString Json;
-		const FString Path = FPaths::Combine(FPlatformMisc::GetEnvironmentVariable(PLATFORM_WINDOWS ? TEXT("USERPROFILE") : TEXT("HOME")),
-			TEXT(".ue-mcp"), TEXT("data"), FStudioDaemon::ProjectKey(), TEXT("studio"), TEXT("settings.json"));
+		const FString Path = FStudioDaemon::StudioSettingsPath();
 		TSharedPtr<FJsonObject> Settings;
 		FString Name = TEXT("ue-mcp");
 		if (FFileHelper::LoadFileToString(Json, *Path) && FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), Settings) && Settings.IsValid())

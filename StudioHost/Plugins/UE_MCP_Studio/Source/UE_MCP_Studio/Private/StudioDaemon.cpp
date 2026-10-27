@@ -567,17 +567,52 @@ bool FStudioDaemon::StartSetupPlan(FString& OutError)
 	return SpawnNpx({ FString::Printf(TEXT("-y %s init --yes --json --dry-run --install=binary --project=\"%s\""), *PackageSpec(), *ProjectFile()) }, OutError, Plan);
 }
 
-bool FStudioDaemon::RunSetup(const FStudioSetupOptions& Options, FString& OutError)
+FString FStudioDaemon::SetupFlags(const FStudioSetupOptions& Options)
 {
 	FString Flags = FString::Printf(TEXT(" --clients=%s"), *FString::Join(Options.Clients, TEXT(",")));
+	Flags += FString::Printf(TEXT(" --disable=%s"), *FString::Join(Options.Disable, TEXT(",")));
 	Flags += Options.bNativeTools ? TEXT(" --native-tools") : TEXT(" --no-native-tools");
+	Flags += FString::Printf(TEXT(" --native-exclude=%s"), *FString::Join(Options.NativeExclude, TEXT(",")));
 	if (!Options.Context.IsEmpty())
 	{
 		Flags += FString::Printf(TEXT(" --context=%s"), *Options.Context);
 	}
 	Flags += Options.bFeedback ? TEXT(" --feedback") : TEXT(" --no-feedback");
+	Flags += Options.bHook ? TEXT(" --hook") : TEXT(" --no-hook");
 	Flags += Options.bSkills ? TEXT(" --skills") : TEXT(" --no-skills");
-	return SpawnNpx({ FString::Printf(TEXT("-y %s init --yes --json --install=binary%s --project=\"%s\""), *PackageSpec(), *Flags, *ProjectFile()) }, OutError);
+	return Flags;
+}
+
+FString FStudioDaemon::SetupResultPath()
+{
+	return FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("UE_MCP_Studio"), TEXT("setup-result.json")));
+}
+
+bool FStudioDaemon::RunSetup(const FStudioSetupOptions& Options, FString& OutError)
+{
+	const FString Result = SetupResultPath();
+	IFileManager::Get().Delete(*Result, false, true, true);
+	IFileManager::Get().MakeDirectory(*FPaths::GetPath(Result), true);
+	return SpawnNpx({ FString::Printf(TEXT("-y %s init --yes --json --install=binary%s --project=\"%s\""), *PackageSpec(), *SetupFlags(Options), *ProjectFile()) }, OutError, Result);
+}
+
+FString FStudioDaemon::FeedbackAuthPath()
+{
+	return FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("UE_MCP_Studio"), TEXT("feedback-auth.jsonl")));
+}
+
+bool FStudioDaemon::StartFeedbackAuth(FString& OutError)
+{
+	const FString Progress = FeedbackAuthPath();
+	IFileManager::Get().Delete(*Progress, false, true, true);
+	IFileManager::Get().MakeDirectory(*FPaths::GetPath(Progress), true);
+	return SpawnNpx({ FString::Printf(TEXT("-y %s auth --json"), *PackageSpec()) }, OutError, Progress);
+}
+
+FString FStudioDaemon::StudioSettingsPath()
+{
+	return FPaths::Combine(FPlatformMisc::GetEnvironmentVariable(PLATFORM_WINDOWS ? TEXT("USERPROFILE") : TEXT("HOME")),
+		TEXT(".ue-mcp"), TEXT("data"), ProjectKey(), TEXT("studio"), TEXT("settings.json"));
 }
 
 bool FStudioDaemon::SpawnNpx(const TArray<FString>& Commands, FString& OutError, const FString& StdoutFile)

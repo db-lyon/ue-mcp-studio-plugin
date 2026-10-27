@@ -13,13 +13,20 @@ struct FStudioDaemonInfo
 	FString Version;
 };
 
-/** The init choices the setup page offers. Clients are ue-mcp client ids (claude-code, codex, ...). */
+/**
+ * The init choices the setup page offers, one per `ue-mcp init` flag. Clients are
+ * ue-mcp client ids such as claude-code and codex; Disable and NativeExclude are tool
+ * category names. Every field is passed, so init keeps nothing the page did not show.
+ */
 struct FStudioSetupOptions
 {
 	TArray<FString> Clients;
+	TArray<FString> Disable;
 	bool bNativeTools = true;
+	TArray<FString> NativeExclude;
 	FString Context;
 	bool bFeedback = true;
+	bool bHook = false;
 	bool bSkills = false;
 };
 
@@ -99,8 +106,23 @@ public:
 	/** Where StartSetupPlan writes the plan. Absent or partial until the run finishes. */
 	static FString SetupPlanPath();
 
-	/** `ue-mcp init` with the choices made on the setup page. */
+	/** `ue-mcp init` with the choices made on the setup page. Its JSON result lands at SetupResultPath(). */
 	static bool RunSetup(const FStudioSetupOptions& Options, FString& OutError);
+
+	/** The ue-mcp init flags for Options, after the fixed ones. */
+	static FString SetupFlags(const FStudioSetupOptions& Options);
+
+	/** Where RunSetup writes init's result: ok, error and the steps it took. Absent or partial until it finishes. */
+	static FString SetupResultPath();
+
+	/** Run `ue-mcp auth --json`, the GitHub sign-in for feedback; its JSON lines land at FeedbackAuthPath(). */
+	static bool StartFeedbackAuth(FString& OutError);
+
+	/** Where StartFeedbackAuth writes the sign-in's progress, one JSON object per line. */
+	static FString FeedbackAuthPath();
+
+	/** The project's Studio settings, written by the Studio UI: ~/.ue-mcp/data/<key>/studio/settings.json. */
+	static FString StudioSettingsPath();
 
 	/** The UI address, carrying the token the daemon exchanges for a cookie. */
 	static FString UiUrl(const FStudioDaemonInfo& Info);
