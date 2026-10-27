@@ -527,8 +527,10 @@
     var page = document.getElementById("page");
     page.onchange = onChoice;
     page.onclick = onPageClick;
-    // Enter on a fresh page presses Next, so the pages can be walked from the keyboard.
-    document.getElementById("next").focus();
+    // Enter on a fresh page presses Next, so the pages can be walked from the keyboard. Focus
+    // would scroll to the button, so each page opens at the top instead.
+    document.getElementById("next").focus({ preventScroll: true });
+    window.scrollTo(0, 0);
   }
 
   // Redraw the current page in place, keeping focus on the control that had it.

@@ -37,6 +37,9 @@ afterEach(() => {
 function open(scenario, { theme = "ue-mcp", page = "" } = {}) {
   const dom = new JSDOM(stubbedPage(html, { scenario, plan: planFor(scenario), theme, page, fast: true }), { runScripts: "dangerously", url: "http://localhost/" });
   const w = dom.window;
+  // jsdom has no layout; record scrolls so a test can see each page open at the top.
+  w.__scrolls = [];
+  w.scrollTo = (x, y) => w.__scrolls.push([x, y]);
   opened.add(w);
   const d = w.document;
   const $ = (sel) => d.querySelector(sel);
@@ -192,6 +195,10 @@ test("choices persist across Back and Next, Enter moves on, and Change returns t
   // Enter on a checkbox presses Next.
   ui.$("#native-on").dispatchEvent(new ui.w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
   assert.equal(ui.kicker(), "Context, 4 of 7");
+  ui.w.__scrolls.length = 0;
+  ui.next();
+  ui.back();
+  assert.deepEqual(ui.w.__scrolls, [[0, 0], [0, 0]], "Next and Back open the page at the top");
   ui.$('input[value="full"]').click();
   ui.next();
   ui.back();
