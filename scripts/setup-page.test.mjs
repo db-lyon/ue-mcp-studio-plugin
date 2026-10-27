@@ -132,8 +132,8 @@ test("new project: every page in order, init's defaults, the strip, and the JSON
     }
     if (page === "Agent") {
       assert.ok(ui.checked("#feedback"), "feedback is on for a new project");
-      assert.ok(!ui.checked("#hook"));
-      assert.ok(!ui.checked("#skills"));
+      assert.equal(ui.$("#hook"), null, "the hook is not offered");
+      assert.equal(ui.$("#skills"), null, "the skills are not offered");
       assert.ok(ui.$("#signin"), "sign-in offered");
       assert.deepEqual(ui.modes(), [["auto-approve", true], ["interactive", false], ["defer", false]], "no mode chosen yet, so the recommended one");
       assert.match(ui.text(), /AskEdit, approve or discard each report in the chat\./);
@@ -174,8 +174,7 @@ test("re-run: each page starts from the project's choices", async () => {
   ui.next();
   assert.ok(ui.checked("#feedback"));
   assert.match(ui.text(), /Signed in to GitHub as @octo/);
-  assert.ok(ui.checked("#hook"));
-  assert.ok(ui.checked("#skills"));
+  assert.equal(ui.$("#hook"), null, "the hook is not offered; the project's choice is sent");
   assert.deepEqual(ui.modes(), [["auto-approve", false], ["interactive", false], ["defer", true]], "the project's mode is chosen");
   assert.match(ui.text(), /HoldCurrent/);
   ui.next();
@@ -220,7 +219,6 @@ test("choices persist across Back and Next, Enter moves on, and Change returns t
   ui.next();
   assert.equal(ui.$("#hook"), null, "no hook without Claude Code");
   assert.equal(ui.$("#skills"), null, "no skills without Claude Code");
-  assert.match(ui.text(), /appear here when Claude Code is chosen/);
   ui.set("#feedback", false);
   assert.equal(ui.$("#signin"), null, "no sign-in with feedback off");
   assert.deepEqual(ui.modes(), [], "no modes with feedback off");
