@@ -625,7 +625,7 @@
       ? '<p class="error">' + esc(auth.reason === "denied" ? "The sign-in was declined on GitHub." : auth.reason === "expired" || auth.reason === "timeout"
         ? "The code expired before it was entered." : "The sign-in failed" + (auth.message ? ": " + auth.message : ".")) + "</p>"
       : "";
-    return '<div class="box"><p class="muted">Sign in with GitHub to file issues as your account. Without a sign-in, issues can be filed only by the ue-mcp-feedback bot. Optional.</p>' +
+    return '<div class="box"><p class="muted">Sign in to file ue-mcp issues with your GitHub account. Optional: if you skip it, a shared ue-mcp account files them for you.</p>' +
       failed + '<div class="actions"><button class="secondary" id="signin">' + (failed ? "Try again" : "Sign in with GitHub") + "</button></div></div>";
   }
 
