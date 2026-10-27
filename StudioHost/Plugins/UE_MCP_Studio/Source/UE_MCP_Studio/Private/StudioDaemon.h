@@ -26,6 +26,8 @@ struct FStudioSetupOptions
 	TArray<FString> NativeExclude;
 	FString Context;
 	bool bFeedback = true;
+	/** interactive, auto-approve or defer; empty leaves the project's feedback mode as it is. */
+	FString FeedbackMode;
 	bool bHook = false;
 	bool bSkills = false;
 };

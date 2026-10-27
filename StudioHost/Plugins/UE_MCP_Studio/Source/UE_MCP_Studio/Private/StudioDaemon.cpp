@@ -578,6 +578,10 @@ FString FStudioDaemon::SetupFlags(const FStudioSetupOptions& Options)
 		Flags += FString::Printf(TEXT(" --context=%s"), *Options.Context);
 	}
 	Flags += Options.bFeedback ? TEXT(" --feedback") : TEXT(" --no-feedback");
+	if (!Options.FeedbackMode.IsEmpty())
+	{
+		Flags += FString::Printf(TEXT(" --feedback-mode=%s"), *Options.FeedbackMode);
+	}
 	Flags += Options.bHook ? TEXT(" --hook") : TEXT(" --no-hook");
 	Flags += Options.bSkills ? TEXT(" --skills") : TEXT(" --no-skills");
 	return Flags;

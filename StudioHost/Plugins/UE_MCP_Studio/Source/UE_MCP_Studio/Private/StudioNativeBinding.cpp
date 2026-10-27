@@ -119,6 +119,7 @@ bool UStudioNativeBinding::RunSetup(const FString& OptionsJson)
 		TEXT("claude-code"), TEXT("claude-code-global"), TEXT("claude-desktop"), TEXT("cursor"), TEXT("codex"),
 	};
 	static const TSet<FString> KnownContexts = { TEXT("micro"), TEXT("lean"), TEXT("full") };
+	static const TSet<FString> KnownFeedbackModes = { TEXT("interactive"), TEXT("auto-approve"), TEXT("defer") };
 
 	TSharedPtr<FJsonObject> In;
 	if (!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(OptionsJson), In) || !In.IsValid())
@@ -177,6 +178,11 @@ bool UStudioNativeBinding::RunSetup(const FString& OptionsJson)
 	if (In->TryGetStringField(TEXT("context"), Options.Context) && !KnownContexts.Contains(Options.Context))
 	{
 		UE_LOG(LogStudioBinding, Warning, TEXT("refused unknown context strategy '%s'"), *Options.Context);
+		return false;
+	}
+	if (In->TryGetStringField(TEXT("feedbackMode"), Options.FeedbackMode) && !KnownFeedbackModes.Contains(Options.FeedbackMode))
+	{
+		UE_LOG(LogStudioBinding, Warning, TEXT("refused unknown feedback mode '%s'"), *Options.FeedbackMode);
 		return false;
 	}
 
