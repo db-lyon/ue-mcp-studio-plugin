@@ -548,8 +548,9 @@ bool FStudioDaemon::LoadInstalledBridge(FString& OutError)
 bool FStudioDaemon::InstallBridge(FString& OutError)
 {
 	// No bridge yet, so no version to pin. The client path is always binaries (spec section 8), and
-	// Studio is the MCP client, so init leaves other clients' configs alone.
-	return SpawnNpx({ FString::Printf(TEXT("-y %s init --yes --json --install=binary --clients= --project=\"%s\""), *PackageSpec(), *ProjectFile()) }, OutError);
+	// Studio is the MCP client, so init leaves other clients' configs alone. Feedback takes the
+	// setup page's recommended default, since this path runs only when its plan never arrived.
+	return SpawnNpx({ FString::Printf(TEXT("-y %s init --yes --json --install=binary --clients= --feedback --project=\"%s\""), *PackageSpec(), *ProjectFile()) }, OutError);
 }
 
 FString FStudioDaemon::SetupPlanPath()

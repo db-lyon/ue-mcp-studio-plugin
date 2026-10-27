@@ -234,10 +234,16 @@
     if (native) {
       html += "<h3>Tools</h3><label><input type=\"checkbox\" id=\"native\"" + (plan.nativeTools.enabled ? " checked" : "") + "> Native Unreal tools <small>Epic's own MCP tools, alongside the bridge</small></label>";
     }
+    html += "<h3>Feedback</h3><label><input type=\"checkbox\" id=\"feedback\"" + (feedbackDefault() ? " checked" : "") + "> Report ue-mcp gaps <small>Recommended. Agents file GitHub issues on ue-mcp</small></label>";
     choices.innerHTML = html;
     choices.onchange = summarize;
     document.getElementById("toggle").disabled = false;
     summarize();
+  }
+
+  // Recommended on for a new project; a re-run keeps the project's own choice.
+  function feedbackDefault() {
+    return plan.isReInit ? plan.feedback : true;
   }
 
   function chosenOptions() {
@@ -246,11 +252,12 @@
     var clients = [];
     for (var i = 0; i < boxes.length; i++) if (boxes[i].checked) clients.push(boxes[i].getAttribute("data-client"));
     var native = document.getElementById("native");
+    var feedback = document.getElementById("feedback");
     return {
       clients: clients,
       nativeTools: native ? native.checked : plan.nativeTools.enabled,
       context: plan.contextStrategy,
-      feedback: plan.feedback,
+      feedback: feedback ? feedback.checked : feedbackDefault(),
       skills: plan.skills,
     };
   }
@@ -260,6 +267,7 @@
     var names = plan.clients.filter(function (c) { return o.clients.indexOf(c.id) >= 0; }).map(function (c) { return c.name; });
     var text = names.length ? "Also connects " + names.join(", ") + "." : "Connects no other MCP clients.";
     if (document.getElementById("native")) text += o.nativeTools ? " Native Unreal tools on." : " Native Unreal tools off.";
+    text += o.feedback ? " Reports ue-mcp gaps." : " Does not report ue-mcp gaps.";
     document.getElementById("summary").textContent = text;
   }
 

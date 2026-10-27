@@ -19,7 +19,7 @@ struct FStudioSetupOptions
 	TArray<FString> Clients;
 	bool bNativeTools = true;
 	FString Context;
-	bool bFeedback = false;
+	bool bFeedback = true;
 	bool bSkills = false;
 };
 
