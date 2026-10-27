@@ -569,7 +569,7 @@
   }
 
   function pageHtml(list, i) {
-    var label = i === list.length - 1 ? "Install" : "Next";
+    var label = i === list.length - 1 ? "Confirm" : "Next";
     return '<div class="pagehead"><p class="kicker">' + esc(list[i].title) + ", " + (i + 1) + " of " + list.length + "</p>" +
       '<button class="next" id="next-top">' + label + "</button></div>" +
       '<div id="page">' + PAGES[list[i].id]() + "</div>" +

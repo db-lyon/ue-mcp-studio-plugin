@@ -107,7 +107,7 @@ test("new project: every page in order, init's defaults, the strip, and the JSON
     assert.equal(ui.kicker(), `${NEW_PAGES[i]}, ${i + 1} of 7`);
     assert.deepEqual(ui.segments(), [i, 7]);
     assert.equal(ui.$("#back") === null, i === 0, "Back on every page but the first");
-    assert.equal(ui.$("#next").textContent, i === NEW_PAGES.length - 1 ? "Install" : "Next");
+    assert.equal(ui.$("#next").textContent, i === NEW_PAGES.length - 1 ? "Confirm" : "Next");
     const page = NEW_PAGES[i];
     if (page === "Project") {
       assert.match(ui.text(), /Preview/);
@@ -241,7 +241,7 @@ test("choices persist across Back and Next, Enter moves on, and Change returns t
   await ui.close();
 });
 
-test("the top Next moves on like the bottom one, and reads Install on the last page", async () => {
+test("the top Next moves on like the bottom one, and reads Confirm on the last page", async () => {
   const ui = open("install-new");
   await ready(ui);
   for (let i = 1; i < 7; i++) {
@@ -249,7 +249,7 @@ test("the top Next moves on like the bottom one, and reads Install on the last p
     ui.$("#next-top").click();
     assert.equal(ui.kicker(), `${NEW_PAGES[i]}, ${i + 1} of 7`);
   }
-  assert.equal(ui.$("#next-top").textContent, "Install");
+  assert.equal(ui.$("#next-top").textContent, "Confirm");
   ui.$("#next-top").click();
   assert.ok(ui.sent(), "Install sent the choices");
   await ui.close();
