@@ -13,7 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import { planFor, stubbedPage } from "./setup-fake.mjs";
+import { cannedPlan, planFor, stubbedPage } from "./setup-fake.mjs";
 
 const require = createRequire(import.meta.url);
 let JSDOM;
@@ -34,8 +34,8 @@ afterEach(() => {
   opened.clear();
 });
 
-function open(scenario, { theme = "ue-mcp", page = "" } = {}) {
-  const dom = new JSDOM(stubbedPage(html, { scenario, plan: planFor(scenario), theme, page, fast: true }), { runScripts: "dangerously", url: "http://localhost/" });
+function open(scenario, { theme = "ue-mcp", page = "", plan = planFor(scenario) } = {}) {
+  const dom = new JSDOM(stubbedPage(html, { scenario, plan, theme, page, fast: true }), { runScripts: "dangerously", url: "http://localhost/" });
   const w = dom.window;
   // jsdom has no layout; record scrolls so a test can see each page open at the top.
   w.__scrolls = [];
@@ -60,6 +60,8 @@ function open(scenario, { theme = "ue-mcp", page = "" } = {}) {
       if (el.checked !== on) el.click();
     },
     checked: (sel) => ui.box(sel).checked,
+    /** The feedback mode radios: [value, checked] in page order. */
+    modes: () => [...d.querySelectorAll('input[name="feedback-mode"]')].map((r) => [r.value, r.checked]),
     async until(fn, what, ms = 3000) {
       const end = Date.now() + ms;
       for (;;) {
@@ -133,13 +135,19 @@ test("new project: every page in order, init's defaults, the strip, and the JSON
       assert.ok(!ui.checked("#hook"));
       assert.ok(!ui.checked("#skills"));
       assert.ok(ui.$("#signin"), "sign-in offered");
+      assert.deepEqual(ui.modes(), [["interactive", true], ["auto-approve", false], ["defer", false]], "the plan's mode, interactive, is chosen");
+      assert.match(ui.text(), /AskEdit, approve or discard each report in the chat\./);
+      assert.match(ui.text(), /File automaticallyReports go straight to GitHub\./);
+      assert.match(ui.text(), /HoldReview later with npx ue-mcp feedback review\./);
+      assert.doesNotMatch(ui.text(), /Current/, "a new project marks no mode as current");
     }
+    if (page === "Review") assert.match(ui.text(), /Feedback modeAskEdit, approve or discard each report in the chat\./);
     if (page !== "Review") ui.next();
   }
 
   ui.next();
   assert.deepEqual(ui.sent(), {
-    clients: ["claude-code"], disable: [], nativeTools: true, nativeExclude: [], context: "micro", feedback: true, hook: false, skills: false,
+    clients: ["claude-code"], disable: [], nativeTools: true, nativeExclude: [], context: "micro", feedback: true, feedbackMode: "interactive", hook: false, skills: false,
   });
   await ui.until(() => /What setup did/.test(ui.text()), "the result steps");
   assert.match(ui.text(), /Installed prebuilt binaries/);
@@ -168,11 +176,14 @@ test("re-run: each page starts from the project's choices", async () => {
   assert.match(ui.text(), /Signed in to GitHub as @octo/);
   assert.ok(ui.checked("#hook"));
   assert.ok(ui.checked("#skills"));
+  assert.deepEqual(ui.modes(), [["interactive", false], ["auto-approve", false], ["defer", true]], "the project's mode is chosen");
+  assert.match(ui.text(), /HoldCurrent/);
   ui.next();
   assert.match(ui.text(), /13 of 15 categories on/);
+  assert.match(ui.text(), /Feedback modeHold/);
   ui.next();
   assert.deepEqual(ui.sent(), {
-    clients: ["claude-code"], disable: ["demo", "networking"], nativeTools: true, nativeExclude: ["pcg"], context: "lean", feedback: true, hook: true, skills: true,
+    clients: ["claude-code"], disable: ["demo", "networking"], nativeTools: true, nativeExclude: ["pcg"], context: "lean", feedback: true, feedbackMode: "defer", hook: true, skills: true,
   });
   await ui.close();
 });
@@ -212,6 +223,7 @@ test("choices persist across Back and Next, Enter moves on, and Change returns t
   assert.match(ui.text(), /appear here when Claude Code is chosen/);
   ui.set("#feedback", false);
   assert.equal(ui.$("#signin"), null, "no sign-in with feedback off");
+  assert.deepEqual(ui.modes(), [], "no modes with feedback off");
   ui.back();
   assert.ok(!ui.checked('[data-client="claude-code"]'));
   assert.ok(ui.checked('[data-client="cursor"]'));
@@ -219,6 +231,7 @@ test("choices persist across Back and Next, Enter moves on, and Change returns t
   assert.ok(!ui.checked("#feedback"));
   ui.next();
   assert.match(ui.text(), /12 of 15 categories on/);
+  assert.doesNotMatch(ui.text(), /Feedback mode/);
   ui.$('[data-goto="context"]').click();
   assert.equal(ui.kicker(), "Context, 4 of 7");
   for (let i = 0; i < 3; i++) ui.next();
@@ -239,7 +252,7 @@ test("UE 5.7: no native tools page, and the project's native settings are sent u
   assert.equal(ui.kicker(), "Context, 3 of 6");
   for (let i = 0; i < 4; i++) ui.next();
   assert.deepEqual(ui.sent(), {
-    clients: ["claude-code"], disable: [], nativeTools: true, nativeExclude: [], context: "micro", feedback: true, hook: false, skills: false,
+    clients: ["claude-code"], disable: [], nativeTools: true, nativeExclude: [], context: "micro", feedback: true, feedbackMode: "interactive", hook: false, skills: false,
   });
   await ui.close();
 });
@@ -258,11 +271,67 @@ test("an older ue-mcp plan: no Tools page, no native category list, no port, and
   ui.next();
   assert.match(ui.text(), /npx ue-mcp auth/);
   assert.equal(ui.$("#signin"), null);
+  assert.deepEqual(ui.modes(), [], "no mode radios without a mode in the plan");
   ui.next();
   assert.doesNotMatch(ui.text(), /categories on/);
+  assert.doesNotMatch(ui.text(), /Feedback mode/);
   ui.next();
   assert.deepEqual(ui.sent(), {
     clients: ["claude-code"], disable: [], nativeTools: false, nativeExclude: [], context: "micro", feedback: true, hook: false, skills: false,
+  });
+  await ui.close();
+});
+
+test("re-run with each feedback mode: the project's mode is chosen, shown and sent, and a change is sent", async () => {
+  const labels = { interactive: "Ask", "auto-approve": "File automatically", defer: "Hold" };
+  for (const mode of Object.keys(labels)) {
+    const plan = cannedPlan({ isReInit: true, feedbackMode: { mode, scope: "project", set: null } });
+    const ui = open("install-rerun", { page: "agent", plan });
+    await ready(ui);
+    assert.equal(ui.kicker(), "Agent, 6 of 7");
+    assert.deepEqual(ui.modes().filter(([, on]) => on).map(([v]) => v), [mode]);
+    assert.match(ui.text(), new RegExp(labels[mode] + "Current"));
+    ui.next();
+    assert.match(ui.text(), new RegExp("Feedback mode" + labels[mode]));
+    ui.next();
+    assert.equal(ui.sent().feedbackMode, mode);
+    await ui.close();
+  }
+
+  const ui = open("install-rerun", { page: "agent" });
+  await ready(ui);
+  ui.$('input[name="feedback-mode"][value="auto-approve"]').click();
+  // Turning feedback off and on again keeps the mode chosen.
+  ui.set("#feedback", false);
+  ui.set("#feedback", true);
+  assert.deepEqual(ui.modes(), [["interactive", false], ["auto-approve", true], ["defer", false]]);
+  ui.next();
+  assert.match(ui.text(), /Feedback modeFile automaticallyReports go straight to GitHub\./);
+  ui.next();
+  assert.deepEqual(ui.sent(), {
+    clients: ["claude-code"], disable: ["demo", "networking"], nativeTools: true, nativeExclude: ["pcg"], context: "lean", feedback: true, feedbackMode: "auto-approve", hook: true, skills: true,
+  });
+  await ui.close();
+});
+
+test("a plan whose feedback mode the page does not know starts at Ask", async () => {
+  const ui = open("install-new", { page: "agent", plan: cannedPlan({ feedbackMode: { scope: "default" } }) });
+  await ready(ui);
+  assert.deepEqual(ui.modes(), [["interactive", true], ["auto-approve", false], ["defer", false]]);
+  ui.next();
+  ui.next();
+  assert.equal(ui.sent().feedbackMode, "interactive");
+  await ui.close();
+});
+
+test("feedback turned off on a re-run sends no mode", async () => {
+  const ui = open("install-rerun", { page: "agent" });
+  await ready(ui);
+  ui.set("#feedback", false);
+  ui.next();
+  ui.next();
+  assert.deepEqual(ui.sent(), {
+    clients: ["claude-code"], disable: ["demo", "networking"], nativeTools: true, nativeExclude: ["pcg"], context: "lean", feedback: false, hook: false, skills: true,
   });
   await ui.close();
 });

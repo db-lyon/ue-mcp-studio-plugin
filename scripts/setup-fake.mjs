@@ -2,7 +2,7 @@
 // outside the editor, shared by scripts/setup-preview.mjs and scripts/setup-page.test.mjs.
 
 /** An `ue-mcp init --dry-run` plan. `legacy` drops the fields older ue-mcp releases do not send. */
-export function cannedPlan({ isReInit = false, engine = "5.8", legacy = false } = {}) {
+export function cannedPlan({ isReInit = false, engine = "5.8", legacy = false, feedbackMode } = {}) {
   const plan = {
     version: "preview",
     project: { path: "C:/Projects/Preview/Preview.uproject", dir: "C:/Projects/Preview", name: "Preview", engine, engineAssociation: engine },
@@ -47,6 +47,7 @@ export function cannedPlan({ isReInit = false, engine = "5.8", legacy = false } 
     nativeCategories: ["animation", "asset", "blueprint", "gas", "level", "material", "niagara", "pcg", "widget"],
     bridge: { port: 51734, derivedPort: 51734, pinnedBy: null },
     feedbackAuth: { login: isReInit ? "octo" : null },
+    feedbackMode: feedbackMode ?? (isReInit ? { mode: "defer", scope: "project", set: null } : { mode: "interactive", scope: "default", set: null }),
   };
 }
 

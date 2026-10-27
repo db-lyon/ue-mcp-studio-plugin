@@ -113,6 +113,7 @@
   .form label.row > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .form label.off { color: var(--dim); cursor: default; }
   .form input { accent-color: var(--accent); width: 14px; height: 14px; margin: 3px 0 0; flex: none; }
+  .form .sub { margin-left: 23px; }
   .form .tag { font: 500 9.5px/1 var(--mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-left: 6px; }
   .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 12px; }
   .grid3 label { padding: 2px 0; font-size: 13px; }
@@ -334,9 +335,26 @@
       // A global client's config applies to every project, so it is never chosen for the user.
       clients: plan.clients.filter(function (c) { return c.detected && c.selected && c.projectScoped; }).map(function (c) { return c.id; }),
       feedback: plan.isReInit ? plan.feedback : true,
+      feedbackMode: feedbackModeOf(plan.feedbackMode && plan.feedbackMode.mode) ? plan.feedbackMode.mode : "interactive",
       hook: plan.promptHook,
       skills: plan.skills,
     };
+  }
+
+  // The modes `npx ue-mcp feedback mode` sets, named as Studio's settings name them.
+  var FEEDBACK_MODES = [
+    { id: "interactive", label: "Ask", note: "Edit, approve or discard each report in the chat." },
+    { id: "auto-approve", label: "File automatically", note: "Reports go straight to GitHub." },
+    { id: "defer", label: "Hold", note: "Review later with npx ue-mcp feedback review." },
+  ];
+
+  function feedbackModeOf(id) {
+    return FEEDBACK_MODES.filter(function (m) { return m.id === id; })[0] || null;
+  }
+
+  // An older ue-mcp's plan has no feedback mode, and its init has no --feedback-mode.
+  function feedbackModeOffered() {
+    return !!plan.feedbackMode && model.feedback;
   }
 
   function claudeCodeChosen() {
@@ -355,7 +373,7 @@
       ? native.exclude.filter(function (c) { return nativeChoices().indexOf(c) >= 0; })
       : native.exclude;
     var cc = claudeCodeChosen();
-    return {
+    var options = {
       clients: model.clients.slice(),
       disable: model.disable.slice(),
       nativeTools: native.enabled,
@@ -365,6 +383,8 @@
       hook: cc && model.feedback && model.hook,
       skills: cc && model.skills,
     };
+    if (feedbackModeOffered()) options.feedbackMode = model.feedbackMode;
+    return options;
   }
 
   function pageList() {
@@ -471,6 +491,14 @@
       var cc = claudeCodeChosen();
       var html = '<div class="form"><h3>Feedback</h3>' +
         checkbox('id="feedback"', model.feedback, "Report ue-mcp gaps", "Recommended. Agents file GitHub issues on ue-mcp when a tool is missing or falls short. Your project name, its folder paths and your username are removed from every issue first. Asset and actor names are kept.");
+      if (feedbackModeOffered()) {
+        html += '<div class="sub">';
+        FEEDBACK_MODES.forEach(function (m) {
+          html += '<label><input type="radio" name="feedback-mode" value="' + m.id + '"' + (model.feedbackMode === m.id ? " checked" : "") + "><span>" + m.label +
+            (plan.isReInit && plan.feedbackMode.mode === m.id ? '<span class="tag">Current</span>' : "") + "<small>" + esc(m.note) + "</small></span></label>";
+        });
+        html += "</div>";
+      }
       if (model.feedback) html += authHtml();
       if (cc) {
         html += "<h3>Claude Code</h3>" +
@@ -499,6 +527,10 @@
       rows.push(["MCP clients", names.length ? esc(names.join(", ")) : "No other clients", "clients"]);
       var login = signedInAs();
       rows.push(["Feedback", o.feedback ? "Reports ue-mcp gaps" + (login ? "<small>As @" + esc(login) + " on GitHub</small>" : "") : "Off", "agent"]);
+      if (o.feedbackMode) {
+        var mode = feedbackModeOf(o.feedbackMode);
+        rows.push(["Feedback mode", mode.label + "<small>" + esc(mode.note) + "</small>", "agent"]);
+      }
       if (claudeCodeChosen()) {
         rows.push(["Python workaround hook", o.hook ? "Installed" : "Not installed", "agent"]);
         rows.push(["Claude Code guides", o.skills ? "Added" : "Not added", "agent"]);
@@ -582,6 +614,7 @@
     else if (t.name === "context") model.context = t.value;
     else if (t.id === "native-on") model.native.enabled = t.checked;
     else if (t.id === "feedback") model.feedback = t.checked;
+    else if (t.name === "feedback-mode") model.feedbackMode = t.value;
     else if (t.id === "hook") model.hook = t.checked;
     else if (t.id === "skills") model.skills = t.checked;
     // These change what else the page shows.
