@@ -469,12 +469,12 @@
       if (model.feedback) html += authHtml();
       if (cc) {
         html += "<h3>Claude Code</h3>" +
-          checkbox('id="hook"' + (model.feedback ? "" : " disabled"), model.feedback && model.hook, "Remind the agent to offer feedback",
-            model.feedback ? "After each execute_python call. Adds a hook to .claude/settings.json." : "Needs Report ue-mcp gaps.", model.feedback ? "" : ' class="off"') +
-          checkbox('id="skills"', model.skills, "Install the bundled skills", "Workflow guides, copied into .claude/skills.");
+          checkbox('id="hook"' + (model.feedback ? "" : " disabled"), model.feedback && model.hook, "Offer a report when a tool falls short",
+            model.feedback ? "When Claude Code has to write its own script because no ue-mcp tool covered the task, it offers to report the gap." : "Turn on Report ue-mcp gaps to use this.", model.feedback ? "" : ' class="off"') +
+          checkbox('id="skills"', model.skills, "Add ue-mcp's guides to Claude Code", "Step-by-step guides Claude Code follows for common Unreal tasks.");
       }
       html += "</div>";
-      if (!cc) html += '<p class="note">The feedback hook and the Claude Code skills are offered when Claude Code is chosen on the MCP clients page.</p>';
+      if (!cc) html += '<p class="note">Two more options appear here when Claude Code is chosen on the MCP clients page.</p>';
       return html;
     },
     review: function () {
@@ -495,8 +495,8 @@
       var login = signedInAs();
       rows.push(["Feedback", o.feedback ? "Reports ue-mcp gaps" + (login ? "<small>As @" + esc(login) + " on GitHub</small>" : "") : "Off", "agent"]);
       if (claudeCodeChosen()) {
-        rows.push(["Hook", o.hook ? "On" : "Off", "agent"]);
-        rows.push(["Skills", o.skills ? "Installed" : "Not installed", "agent"]);
+        rows.push(["Offer reports in Claude Code", o.hook ? "On" : "Off", "agent"]);
+        rows.push(["Claude Code guides", o.skills ? "Added" : "Not added", "agent"]);
       }
       var html = '<p><strong>Review and install</strong></p><dl class="facts review">';
       rows.forEach(function (r) {

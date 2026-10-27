@@ -209,7 +209,7 @@ test("choices persist across Back and Next, Enter moves on, and Change returns t
   ui.next();
   assert.equal(ui.$("#hook"), null, "no hook without Claude Code");
   assert.equal(ui.$("#skills"), null, "no skills without Claude Code");
-  assert.match(ui.text(), /offered when Claude Code is chosen/);
+  assert.match(ui.text(), /appear here when Claude Code is chosen/);
   ui.set("#feedback", false);
   assert.equal(ui.$("#signin"), null, "no sign-in with feedback off");
   ui.back();
