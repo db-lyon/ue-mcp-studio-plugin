@@ -335,7 +335,8 @@
       // A global client's config applies to every project, so it is never chosen for the user.
       clients: plan.clients.filter(function (c) { return c.detected && c.selected && c.projectScoped; }).map(function (c) { return c.id; }),
       feedback: plan.isReInit ? plan.feedback : true,
-      feedbackMode: feedbackModeOf(plan.feedbackMode && plan.feedbackMode.mode) ? plan.feedbackMode.mode : "interactive",
+      // A mode someone chose is kept; otherwise the recommended one.
+      feedbackMode: plan.feedbackMode && plan.feedbackMode.scope !== "default" && feedbackModeOf(plan.feedbackMode.mode) ? plan.feedbackMode.mode : "auto-approve",
       hook: plan.promptHook,
       skills: plan.skills,
     };
@@ -343,8 +344,8 @@
 
   // The modes `npx ue-mcp feedback mode` sets, named as Studio's settings name them.
   var FEEDBACK_MODES = [
+    { id: "auto-approve", label: "File automatically", note: "Reports go straight to GitHub.", recommended: true },
     { id: "interactive", label: "Ask", note: "Edit, approve or discard each report in the chat." },
-    { id: "auto-approve", label: "File automatically", note: "Reports go straight to GitHub." },
     { id: "defer", label: "Hold", note: "Review later with npx ue-mcp feedback review." },
   ];
 
@@ -494,7 +495,7 @@
       if (feedbackModeOffered()) {
         html += '<div class="sub">';
         FEEDBACK_MODES.forEach(function (m) {
-          html += '<label><input type="radio" name="feedback-mode" value="' + m.id + '"' + (model.feedbackMode === m.id ? " checked" : "") + "><span>" + m.label +
+          html += '<label><input type="radio" name="feedback-mode" value="' + m.id + '"' + (model.feedbackMode === m.id ? " checked" : "") + "><span>" + m.label + (m.recommended ? " (recommended)" : "") +
             (plan.isReInit && plan.feedbackMode.mode === m.id ? '<span class="tag">Current</span>' : "") + "<small>" + esc(m.note) + "</small></span></label>";
         });
         html += "</div>";

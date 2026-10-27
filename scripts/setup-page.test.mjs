@@ -135,19 +135,19 @@ test("new project: every page in order, init's defaults, the strip, and the JSON
       assert.ok(!ui.checked("#hook"));
       assert.ok(!ui.checked("#skills"));
       assert.ok(ui.$("#signin"), "sign-in offered");
-      assert.deepEqual(ui.modes(), [["interactive", true], ["auto-approve", false], ["defer", false]], "the plan's mode, interactive, is chosen");
+      assert.deepEqual(ui.modes(), [["auto-approve", true], ["interactive", false], ["defer", false]], "no mode chosen yet, so the recommended one");
       assert.match(ui.text(), /AskEdit, approve or discard each report in the chat\./);
-      assert.match(ui.text(), /File automaticallyReports go straight to GitHub\./);
+      assert.match(ui.text(), /File automatically \(recommended\)Reports go straight to GitHub\./);
       assert.match(ui.text(), /HoldReview later with npx ue-mcp feedback review\./);
       assert.doesNotMatch(ui.text(), /Current/, "a new project marks no mode as current");
     }
-    if (page === "Review") assert.match(ui.text(), /Feedback modeAskEdit, approve or discard each report in the chat\./);
+    if (page === "Review") assert.match(ui.text(), /Feedback modeFile automaticallyReports go straight to GitHub\./);
     if (page !== "Review") ui.next();
   }
 
   ui.next();
   assert.deepEqual(ui.sent(), {
-    clients: ["claude-code"], disable: [], nativeTools: true, nativeExclude: [], context: "micro", feedback: true, feedbackMode: "interactive", hook: false, skills: false,
+    clients: ["claude-code"], disable: [], nativeTools: true, nativeExclude: [], context: "micro", feedback: true, feedbackMode: "auto-approve", hook: false, skills: false,
   });
   await ui.until(() => /What setup did/.test(ui.text()), "the result steps");
   assert.match(ui.text(), /Installed prebuilt binaries/);
@@ -176,7 +176,7 @@ test("re-run: each page starts from the project's choices", async () => {
   assert.match(ui.text(), /Signed in to GitHub as @octo/);
   assert.ok(ui.checked("#hook"));
   assert.ok(ui.checked("#skills"));
-  assert.deepEqual(ui.modes(), [["interactive", false], ["auto-approve", false], ["defer", true]], "the project's mode is chosen");
+  assert.deepEqual(ui.modes(), [["auto-approve", false], ["interactive", false], ["defer", true]], "the project's mode is chosen");
   assert.match(ui.text(), /HoldCurrent/);
   ui.next();
   assert.match(ui.text(), /13 of 15 categories on/);
@@ -252,7 +252,7 @@ test("UE 5.7: no native tools page, and the project's native settings are sent u
   assert.equal(ui.kicker(), "Context, 3 of 6");
   for (let i = 0; i < 4; i++) ui.next();
   assert.deepEqual(ui.sent(), {
-    clients: ["claude-code"], disable: [], nativeTools: true, nativeExclude: [], context: "micro", feedback: true, feedbackMode: "interactive", hook: false, skills: false,
+    clients: ["claude-code"], disable: [], nativeTools: true, nativeExclude: [], context: "micro", feedback: true, feedbackMode: "auto-approve", hook: false, skills: false,
   });
   await ui.close();
 });
@@ -290,7 +290,7 @@ test("re-run with each feedback mode: the project's mode is chosen, shown and se
     await ready(ui);
     assert.equal(ui.kicker(), "Agent, 6 of 7");
     assert.deepEqual(ui.modes().filter(([, on]) => on).map(([v]) => v), [mode]);
-    assert.match(ui.text(), new RegExp(labels[mode] + "Current"));
+    assert.match(ui.text(), new RegExp(labels[mode] + (mode === "auto-approve" ? " \\(recommended\\)" : "") + "Current"));
     ui.next();
     assert.match(ui.text(), new RegExp("Feedback mode" + labels[mode]));
     ui.next();
@@ -304,7 +304,7 @@ test("re-run with each feedback mode: the project's mode is chosen, shown and se
   // Turning feedback off and on again keeps the mode chosen.
   ui.set("#feedback", false);
   ui.set("#feedback", true);
-  assert.deepEqual(ui.modes(), [["interactive", false], ["auto-approve", true], ["defer", false]]);
+  assert.deepEqual(ui.modes(), [["auto-approve", true], ["interactive", false], ["defer", false]]);
   ui.next();
   assert.match(ui.text(), /Feedback modeFile automaticallyReports go straight to GitHub\./);
   ui.next();
@@ -314,13 +314,13 @@ test("re-run with each feedback mode: the project's mode is chosen, shown and se
   await ui.close();
 });
 
-test("a plan whose feedback mode the page does not know starts at Ask", async () => {
+test("a plan whose feedback mode the page does not know starts at the recommended mode", async () => {
   const ui = open("install-new", { page: "agent", plan: cannedPlan({ feedbackMode: { scope: "default" } }) });
   await ready(ui);
-  assert.deepEqual(ui.modes(), [["interactive", true], ["auto-approve", false], ["defer", false]]);
+  assert.deepEqual(ui.modes(), [["auto-approve", true], ["interactive", false], ["defer", false]]);
   ui.next();
   ui.next();
-  assert.equal(ui.sent().feedbackMode, "interactive");
+  assert.equal(ui.sent().feedbackMode, "auto-approve");
   await ui.close();
 });
 
