@@ -514,13 +514,13 @@
       var rows = [["Project", esc(plan.project.name) + (plan.project.engine ? ", Unreal " + esc(plan.project.engine) : ""), "project"]];
       if (plan.categories) {
         var off = plan.categories.filter(function (c) { return o.disable.indexOf(c.name) >= 0; });
-        rows.push(["Tools", off.length === 0 ? "All categories on"
-          : (plan.categories.length - off.length) + " of " + plan.categories.length + " categories on<small>Off: " + esc(off.map(function (c) { return c.label; }).join(", ")) + "</small>", "tools"]);
+        rows.push(["Tools", off.length === 0 ? "Enabled (All categories)"
+          : "Enabled (" + (plan.categories.length - off.length) + " of " + plan.categories.length + " categories)<small>Off: " + esc(off.map(function (c) { return c.label; }).join(", ")) + "</small>", "tools"]);
       }
       if (nativeOffered()) {
         var nativeAll = nativeChoices().length;
-        rows.push(["Native tools", !o.nativeTools ? "Off" : o.nativeExclude.length === 0 ? "All categories on"
-          : (nativeAll ? (nativeAll - o.nativeExclude.length) + " of " + nativeAll + " categories on" : "On") + "<small>Off: " + esc(o.nativeExclude.join(", ")) + "</small>", "native"]);
+        rows.push(["Native tools", !o.nativeTools ? "Disabled" : o.nativeExclude.length === 0 ? "Enabled (All categories)"
+          : (nativeAll ? "Enabled (" + (nativeAll - o.nativeExclude.length) + " of " + nativeAll + " categories)" : "Enabled") + "<small>Off: " + esc(o.nativeExclude.join(", ")) + "</small>", "native"]);
       }
       rows.push(["Context", esc(o.context), "context"]);
       var names = clientNames(o.clients);

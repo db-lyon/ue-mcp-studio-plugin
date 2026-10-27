@@ -178,8 +178,8 @@ test("re-run: each page starts from the project's choices", async () => {
   assert.deepEqual(ui.modes(), [["auto-approve", false], ["interactive", false], ["defer", true]], "the project's mode is chosen");
   assert.match(ui.text(), /HoldCurrent/);
   ui.next();
-  assert.match(ui.text(), /13 of 15 categories on/);
-  assert.match(ui.text(), /Native tools\d+ of \d+ categories onOff: pcg/);
+  assert.match(ui.text(), /ToolsEnabled \(13 of 15 categories\)/);
+  assert.match(ui.text(), /Native toolsEnabled \(\d+ of \d+ categories\)Off: pcg/);
   assert.match(ui.text(), /Feedback modeHold/);
   ui.next();
   assert.deepEqual(ui.sent(), {
@@ -229,7 +229,7 @@ test("choices persist across Back and Next, Enter moves on, and Change returns t
   ui.next();
   assert.ok(!ui.checked("#feedback"));
   ui.next();
-  assert.match(ui.text(), /12 of 15 categories on/);
+  assert.match(ui.text(), /ToolsEnabled \(12 of 15 categories\)/);
   assert.doesNotMatch(ui.text(), /Feedback mode/);
   ui.$('[data-goto="context"]').click();
   assert.equal(ui.kicker(), "Context, 4 of 7");
@@ -286,7 +286,7 @@ test("an older ue-mcp plan: no Tools page, no native category list, no port, and
   assert.equal(ui.$("#signin"), null);
   assert.deepEqual(ui.modes(), [], "no mode radios without a mode in the plan");
   ui.next();
-  assert.doesNotMatch(ui.text(), /categories on/);
+  assert.doesNotMatch(ui.text(), /Enabled \(\d+ of/);
   assert.doesNotMatch(ui.text(), /Feedback mode/);
   ui.next();
   assert.deepEqual(ui.sent(), {
