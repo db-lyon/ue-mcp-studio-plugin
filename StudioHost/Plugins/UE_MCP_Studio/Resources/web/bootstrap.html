@@ -88,6 +88,8 @@
   /* A second Next at the top right, so one is always in the same place whatever the page's length. */
   .pagehead { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -4px 0 12px; }
   .pagehead .kicker { margin: 0 !important; }
+  .pagehead button { background: transparent; color: var(--accent); border-color: var(--accent); }
+  .pagehead button:hover:not(:disabled) { background: transparent; color: var(--accent-hi); border-color: var(--accent-hi); }
   /* Setup pages are at least as tall as the first, with the buttons kept at the bottom. */
   .card.paged { display: flex; flex-direction: column; }
   .card.paged .actions { margin-top: auto; padding-top: 16px; }
