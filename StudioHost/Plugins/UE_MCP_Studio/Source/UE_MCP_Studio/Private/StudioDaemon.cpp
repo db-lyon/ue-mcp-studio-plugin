@@ -43,36 +43,52 @@ namespace
 	double LastInstallStarted = -1.0;
 	constexpr double InstallSettleSeconds = 60.0;
 
-	/** Semver order over X.Y.Z[-pre.N]; a prerelease sorts below its release. */
-	int32 CompareVersions(const FString& A, const FString& B)
+	/** The "version" field of a JSON file, or empty. */
+	FString JsonVersionField(const FString& File, const TCHAR* Field)
 	{
-		auto Split = [](const FString& V, TArray<int32>& Core, TArray<FString>& Pre)
+		FString Text;
+		TSharedPtr<FJsonObject> Json;
+		FString Version;
+		if (FFileHelper::LoadFileToString(Text, *File)
+			&& FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Json) && Json.IsValid())
 		{
-			FString Main = V, Tail;
-			V.Split(TEXT("-"), &Main, &Tail);
-			TArray<FString> Parts;
-			Main.ParseIntoArray(Parts, TEXT("."));
-			for (int32 i = 0; i < 3; ++i) Core.Add(Parts.IsValidIndex(i) ? FCString::Atoi(*Parts[i]) : 0);
-			if (!Tail.IsEmpty()) Tail.ParseIntoArray(Pre, TEXT("."));
-		};
-		TArray<int32> CA, CB;
-		TArray<FString> PA, PB;
-		Split(A, CA, PA);
-		Split(B, CB, PB);
-		for (int32 i = 0; i < 3; ++i)
-		{
-			if (CA[i] != CB[i]) return CA[i] < CB[i] ? -1 : 1;
+			Json->TryGetStringField(Field, Version);
 		}
-		if (PA.Num() == 0 || PB.Num() == 0) return PA.Num() == PB.Num() ? 0 : (PA.Num() == 0 ? 1 : -1);
-		for (int32 i = 0; i < FMath::Min(PA.Num(), PB.Num()); ++i)
-		{
-			const bool bNumA = PA[i].IsNumeric(), bNumB = PB[i].IsNumeric();
-			const int32 C = bNumA && bNumB ? FCString::Atoi(*PA[i]) - FCString::Atoi(*PB[i]) : PA[i].Compare(PB[i]);
-			if (C != 0) return C < 0 ? -1 : 1;
-		}
-		return PA.Num() == PB.Num() ? 0 : (PA.Num() < PB.Num() ? -1 : 1);
+		return Version;
 	}
+}
 
+int32 FStudioDaemon::CompareVersions(const FString& A, const FString& B)
+{
+	auto Split = [](const FString& V, TArray<int32>& Core, TArray<FString>& Pre)
+	{
+		FString Main = V, Tail;
+		V.Split(TEXT("-"), &Main, &Tail);
+		TArray<FString> Parts;
+		Main.ParseIntoArray(Parts, TEXT("."));
+		for (int32 i = 0; i < 3; ++i) Core.Add(Parts.IsValidIndex(i) ? FCString::Atoi(*Parts[i]) : 0);
+		if (!Tail.IsEmpty()) Tail.ParseIntoArray(Pre, TEXT("."));
+	};
+	TArray<int32> CA, CB;
+	TArray<FString> PA, PB;
+	Split(A, CA, PA);
+	Split(B, CB, PB);
+	for (int32 i = 0; i < 3; ++i)
+	{
+		if (CA[i] != CB[i]) return CA[i] < CB[i] ? -1 : 1;
+	}
+	if (PA.Num() == 0 || PB.Num() == 0) return PA.Num() == PB.Num() ? 0 : (PA.Num() == 0 ? 1 : -1);
+	for (int32 i = 0; i < FMath::Min(PA.Num(), PB.Num()); ++i)
+	{
+		const bool bNumA = PA[i].IsNumeric(), bNumB = PB[i].IsNumeric();
+		const int32 C = bNumA && bNumB ? FCString::Atoi(*PA[i]) - FCString::Atoi(*PB[i]) : PA[i].Compare(PB[i]);
+		if (C != 0) return C < 0 ? -1 : 1;
+	}
+	return PA.Num() == PB.Num() ? 0 : (PA.Num() < PB.Num() ? -1 : 1);
+}
+
+namespace
+{
 	FString UserHome()
 	{
 #if PLATFORM_WINDOWS
@@ -262,12 +278,67 @@ FString FStudioDaemon::PackageSpec()
 		(*UeMcp)->TryGetStringField(TEXT("min"), MinVersion);
 		(*UeMcp)->TryGetStringField(TEXT("package"), Package);
 	}
+	return ChoosePackageSpec(InstalledBridgeVersion(), MinVersion, Package, InstalledExtensionUeMcpMin());
+}
+
+FString FStudioDaemon::ChoosePackageSpec(const FString& BridgeVersion, const FString& ManifestMin, const FString& ManifestPackage, const FString& ExtensionMin)
+{
+	// A beta extension on a bridge `npx ue-mcp` moved back to stable: only its own minimum loads it.
+	if (!ExtensionMin.IsEmpty() && (BridgeVersion.IsEmpty() || CompareVersions(BridgeVersion, ExtensionMin) < 0)
+		&& CompareVersions(ExtensionMin, ManifestMin) >= 0)
+	{
+		return FString::Printf(TEXT("ue-mcp@%s"), *ExtensionMin);
+	}
 	// The bridge's own version keeps server and bridge in step, unless it is older than Studio needs.
+	return BridgeVersion.IsEmpty() || CompareVersions(BridgeVersion, ManifestMin) < 0
+		? ManifestPackage
+		: FString::Printf(TEXT("ue-mcp@%s"), *BridgeVersion);
+}
+
+bool FStudioDaemon::ChannelWouldDowngrade(const FString& Installed, const FString& ChannelVersion)
+{
+	if (Installed.IsEmpty())
+	{
+		return false;
+	}
+	if (!ChannelVersion.IsEmpty())
+	{
+		return CompareVersions(Installed, ChannelVersion) > 0;
+	}
+	// Without the channel's version, a prerelease is taken to be ahead of the stable channel.
+	return Installed.Contains(TEXT("-")) && FPlatformMisc::GetEnvironmentVariable(TEXT("UE_MCP_STUDIO_CHANNEL")).IsEmpty();
+}
+
+FString FStudioDaemon::InstalledBridgeVersion()
+{
+	// The files on disk, not the descriptor loaded at startup: an update swaps them while the editor runs.
 	const TSharedPtr<IPlugin> Bridge = IPluginManager::Get().FindPlugin(TEXT("UE_MCP_Bridge"));
-	const FString Version = Bridge.IsValid() ? Bridge->GetDescriptor().VersionName : FString();
-	return Version.IsEmpty() || CompareVersions(Version, MinVersion) < 0
-		? Package
-		: FString::Printf(TEXT("ue-mcp@%s"), *Version);
+	const FString Dir = Bridge.IsValid() ? Bridge->GetBaseDir() : FPaths::Combine(FPaths::ProjectPluginsDir(), TEXT("UE_MCP_Bridge"));
+	FString Version = JsonVersionField(FPaths::Combine(Dir, TEXT(".ue-mcp-install.json")), TEXT("version"));
+	if (Version.IsEmpty())
+	{
+		Version = JsonVersionField(FPaths::Combine(Dir, TEXT("UE_MCP_Bridge.uplugin")), TEXT("VersionName"));
+	}
+	if (Version.IsEmpty() && Bridge.IsValid())
+	{
+		Version = Bridge->GetDescriptor().VersionName;
+	}
+	return Version;
+}
+
+FString FStudioDaemon::InstalledExtensionUeMcpMin()
+{
+	FString Text;
+	TSharedPtr<FJsonObject> Json;
+	const TSharedPtr<FJsonObject>* Meta = nullptr;
+	FString Min;
+	if (FFileHelper::LoadFileToString(Text, *FPaths::Combine(ExtensionsDir(), TEXT("studio"), TEXT("package.json")))
+		&& FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Json) && Json.IsValid()
+		&& Json->TryGetObjectField(TEXT("ueMcpExtension"), Meta))
+	{
+		(*Meta)->TryGetStringField(TEXT("ueMcp"), Min);
+	}
+	return Min;
 }
 
 FString FStudioDaemon::ManifestCachePath()
@@ -327,6 +398,20 @@ FString FStudioDaemon::ExtensionManifestUrl()
 
 bool FStudioDaemon::InstallExtensionAndStart(FString& OutError)
 {
+	// A daemon without Studio is reinstalled from the channel, which for a prerelease
+	// is older: start the ue-mcp the installed extension needs instead, which replaces
+	// an older daemon and loads it.
+	const FString Installed = InstalledExtensionVersion();
+	if (ChannelWouldDowngrade(Installed, JsonVersionField(ManifestCachePath(), TEXT("version"))))
+	{
+		UE_LOG(LogStudio, Log, TEXT("keeping Studio %s, ahead of its release channel; starting %s for it"), *Installed, *PackageSpec());
+		const bool bStarted = StartDaemon(OutError);
+		if (bStarted)
+		{
+			LastInstallStarted = FPlatformTime::Seconds();
+		}
+		return bStarted;
+	}
 	const bool bStarted = SpawnNpx({
 		FString::Printf(TEXT("-y %s extension install \"%s\" \"%s\""), *PackageSpec(), *ExtensionManifestUrl(), *ProjectFile()),
 		FString::Printf(TEXT("-y %s daemon start \"%s\""), *PackageSpec(), *ProjectFile()),
