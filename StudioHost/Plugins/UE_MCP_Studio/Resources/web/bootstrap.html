@@ -506,8 +506,8 @@
       if (model.feedback) html += authHtml();
       if (cc) {
         html += "<h3>Claude Code</h3>" +
-          checkbox('id="hook"' + (model.feedback ? "" : " disabled"), model.feedback && model.hook, "Feedback hook after every Python script",
-            model.feedback ? "Installs a Claude Code hook that runs every time the agent runs a Python script (execute_python), which it does only when no ue-mcp tool can do the job. The hook requires the agent to tell you what it worked around and ask whether to file a ue-mcp issue for it." : "Turn on Report ue-mcp gaps to use this.", model.feedback ? "" : ' class="off"') +
+          checkbox('id="hook"' + (model.feedback ? "" : " disabled"), model.feedback && model.hook, "Always flag workarounds",
+            model.feedback ? "When Claude Code has to work around something ue-mcp can't do yet, it always tells you, so the gap can be reported and fixed." : "Turn on Report ue-mcp gaps to use this.", model.feedback ? "" : ' class="off"') +
           checkbox('id="skills"', model.skills, "Add ue-mcp's guides to Claude Code", "Step-by-step guides Claude Code follows for common Unreal tasks.");
       }
       html += "</div>";
@@ -536,7 +536,7 @@
         rows.push(["Feedback mode", mode.label + "<small>" + esc(mode.note) + "</small>", "agent"]);
       }
       if (claudeCodeChosen()) {
-        rows.push(["Feedback hook after Python scripts", o.hook ? "Installed" : "Not installed", "agent"]);
+        rows.push(["Always flag workarounds", o.hook ? "On" : "Off", "agent"]);
         rows.push(["Claude Code guides", o.skills ? "Added" : "Not added", "agent"]);
       }
       var html = '<p><strong>Review and install</strong></p><dl class="facts review">';
