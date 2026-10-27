@@ -179,6 +179,7 @@ test("re-run: each page starts from the project's choices", async () => {
   assert.match(ui.text(), /HoldCurrent/);
   ui.next();
   assert.match(ui.text(), /13 of 15 categories on/);
+  assert.match(ui.text(), /Native tools\d+ of \d+ categories onOff: pcg/);
   assert.match(ui.text(), /Feedback modeHold/);
   ui.next();
   assert.deepEqual(ui.sent(), {
