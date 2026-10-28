@@ -410,3 +410,37 @@ test("the restart screens list what setup did", async () => {
   await ui.until(() => /What setup did/.test(ui.text()), "the result steps");
   await ui.close();
 });
+
+test("the heading: Initial Setup with its lede only while setup choices are on screen, Starting Studio on launch screens", async () => {
+  const heading = (ui) => [ui.$("h1").textContent, ui.$(".lede").hidden];
+  const setup = ["Initial Setup", false];
+  const launch = ["Starting Studio", true];
+  const screens = [
+    ["node-missing", /Install dependencies/, setup],
+    ["install-new", /Install the ue-mcp bridge|Project/, setup],
+    ["install-noplan", /Reading this project's setup/, setup],
+    ["restart-source", /Restart to build the bridge/, setup],
+    ["restart-binary", /Restart to load the bridge/, setup],
+    ["downloading", /Downloading Studio/, launch],
+    ["starting", /Starting the MCP server/, launch],
+    ["connecting", /Connecting to the MCP server/, launch],
+  ];
+  for (const [scenario, card, want] of screens) {
+    const ui = open(scenario);
+    await ui.until(() => card.test(ui.text()), `${scenario}: ${card}`);
+    assert.deepEqual(heading(ui), want, scenario);
+    await ui.close();
+  }
+  // Every setup page, then the install screen Install opens.
+  const ui = open("install-new");
+  await ready(ui);
+  for (let i = 0; i < NEW_PAGES.length - 1; i++) {
+    assert.deepEqual(heading(ui), setup, ui.kicker());
+    ui.next();
+  }
+  assert.deepEqual(heading(ui), setup, ui.kicker());
+  ui.next();
+  await ui.until(() => /Installing the bridge|Restart to/.test(ui.text()), "the install screen");
+  assert.deepEqual(heading(ui), setup, "installing");
+  await ui.close();
+});

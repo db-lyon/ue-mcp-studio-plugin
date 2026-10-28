@@ -29,9 +29,9 @@ The first time you open Studio, the plugin asks before it downloads or installs 
 - The ue-mcp server from npm, run with npx and kept in npm's cache.
 - The Studio extension (the agent, its UI and Studio's window app) into `%USERPROFILE%\.ue-mcp`, from the UE-MCP Studio GitHub releases.
 
-Models: Studio runs models from Anthropic, OpenAI and Google with your own API key, with a ChatGPT sign-in for OpenAI models, or with a Claude subscription sign-in for Claude models, which you choose and which completes on Anthropic's own sign-in page. You need an account or API key with at least one of these providers. Model use is billed or limited by that provider.
+Models: Studio runs models from Anthropic, OpenAI and Google with your own API key, or with a ChatGPT sign-in for OpenAI models. Claude models can also run on your Claude plan through your Claude Code login: you run `claude /login` in a terminal and Studio reads that login. Studio has no Claude sign-in of its own and never sees your Claude credentials. You need an account or API key with at least one of these providers. Model use is billed or limited by that provider.
 
-Approvals: the agent's shell commands, file writes and file edits wait in the chat for Allow, Allow for this session or Deny. This can be turned off per project.
+Approvals: **Settings > Approvals & review** sets, per kind, whether the agent asks first: shell commands, file changes, restarting or rebuilding the editor, and ue-mcp actions that delete or overwrite. Each kind is Ask or Allow, and shell commands and file changes can also be allowed only inside the project folder. A new install asks for all four. The settings are kept per project. An approval waits in the chat for Allow, Allow for this session or Deny.
 
 Prerequisites:
 
@@ -53,7 +53,7 @@ Documentation: https://ue-mcp.com/docs/studio
 - Toolbar button, Tools menu entry and `Studio.Open` console command that open Studio.
 - UE-MCP Studio dock tab with the setup page and a status view.
 - One-time install consent prompt that lists every part and its install path before anything is downloaded.
-- Setup page: Node.js check with a link to the download page, bridge install with options, Studio download and daemon start, with progress written to `Saved/Logs/UE_MCP_Studio.log`.
+- Setup page: Node.js check with a link to the download page, bridge install with ue-mcp init's choices on step-by-step pages and a review, Studio download and daemon start, with progress written to `Saved/Logs/UE_MCP_Studio.log`.
 - Loads a newly installed bridge without an editor restart when every engine plugin it needs is already loaded.
 - Starts the project's ue-mcp daemon with the editor, outside the editor's process.
 - Studio in its own window or docked in the UE-MCP Studio tab, kept per project.
@@ -87,8 +87,8 @@ Documentation: https://ue-mcp.com/docs/studio
 - Requires the Microsoft Edge WebView2 Runtime for Studio's own window (included in Windows 11). Without it, Studio opens in the web browser.
 - At first start, after the user's explicit consent, the plugin downloads and installs the UE-MCP bridge plugin (MIT) into the project, the ue-mcp npm package (MIT) through npx, and the UE-MCP Studio extension (MIT). See the third-party software declaration.
 - Requires an internet connection for the first-start install, updates and model calls.
-- Model use requires the user's own account or API key with Anthropic, OpenAI or Google. The Claude subscription sign-in is optional and completes on Anthropic's own sign-in page in the Claude runtime.
-- The agent can run shell commands and change files in the project folder. By default each command, file write and file edit waits for the user's approval.
+- Model use requires the user's own account or API key with Anthropic, OpenAI or Google. Claude models can run on the user's Claude plan through their existing Claude Code login (`claude /login`), which Studio reads. Studio has no Claude sign-in of its own.
+- The agent can run shell commands and change files in the project folder. By default shell commands, file changes, editor restarts and ue-mcp actions that delete or overwrite wait for the user's approval. **Settings > Approvals & review** sets each kind.
 - Visual Studio with the Desktop development with C++ workload is needed only to build the bridge from source; Studio's setup uses prebuilt binaries.
 - Editor only. Not included in packaged builds.
 
@@ -119,13 +119,13 @@ Specs: each image at least 1920x1080, JPEG or PNG, under 3 MB each, under 25 MB 
 2. **Own window.** Studio in its own window beside the editor, showing a session with an editor action result.
 3. **Toolbar and menu.** The **Studio** toolbar button and **Tools > UE-MCP Studio** menu entry, highlighted.
 4. **Consent prompt.** The UE-MCP Studio tab showing **Allow Studio to install its parts?** with the list of parts and paths.
-5. **Setup page.** The setup page on the Bridge step, with **Options** open.
+5. **Setup page.** The setup page on a Bridge page such as Tools, with the page segments under the Bridge step.
 6. **Status view.** The UE-MCP Studio tab's status view: daemon version and port, editor connected, window docked, updates current.
-7. **Approval.** An approval card in the chat for a file edit, with the diff and **Allow**, **Allow for this session** and **Deny**.
-8. **Model picker.** The model picker open in the chat box, showing the vendors and sign-ins.
+7. **Approval.** An approval card in the chat for a file change, with the diff and **Allow**, **Allow for this session** and **Deny**.
+8. **Model picker.** The model picker open in the chat box, showing the vendors, the ChatGPT sign-in and the Claude row that runs on the Claude Code login.
 9. **Ask Studio.** The Ask Studio prompt at the cursor over the level viewport, with its context chip.
 10. **Chat about this.** The context menu on a selected actor in the Outliner with **Chat about this**.
-11. **Settings.** Settings > General with the Updates card (Studio, Editor plugin, ue-mcp rows) and Settings > Agent with **Ask before running commands and editing files**.
+11. **Settings.** Settings > General with the Updates card (Studio, Editor plugin, ue-mcp rows) and Settings > Approvals & review with the **Ask first** rows, one per kind.
 
 ## Video shot list (60 to 90 seconds)
 
@@ -136,9 +136,9 @@ Specs: 1920x1080, MP4, MOV or WEBM, 300 MB or less. Screen capture of the editor
 | 0:00 to 0:06 | Editor open on a clean project; cursor clicks the **Studio** toolbar button. | Open Studio from the toolbar. |
 | 0:06 to 0:16 | The consent prompt; scroll the list of parts and paths; click **Allow**. | Nothing installs until you allow it. |
 | 0:16 to 0:28 | Setup page: Bridge step, click **Install**, progress, then Studio downloads and the daemon starts. Cut the waiting time. | The bridge and Studio install for this project. |
-| 0:28 to 0:36 | Studio's window opens. Pick a model in the chat box. | Pick a model and sign in or use your API key. |
+| 0:28 to 0:36 | Studio's window opens. Pick a model in the chat box. | Pick a model, then use a sign-in or your API key. |
 | 0:36 to 0:50 | Type a request that places and changes actors in the level; the agent's editor actions appear; the viewport updates. | The agent works in the editor through ue-mcp. |
-| 0:50 to 1:00 | The agent proposes a file edit; the approval card with its diff; click **Allow**. | Commands and file edits wait for your approval. |
+| 0:50 to 1:00 | The agent proposes a file change; the approval card with its diff; click **Allow**. | Commands and file changes wait for your approval. |
 | 1:00 to 1:10 | Click **Dock in editor**; Studio moves into the UE-MCP Studio tab; resize the tab and it follows. | Use Studio in its own window or docked in a tab. |
 | 1:10 to 1:22 | Ctrl+Alt+right-click on a point in the level; the Ask Studio prompt opens with the context chip; send a short request; the reply appears. | Ask Studio about what is under the cursor. |
 | 1:22 to 1:30 | Settings > General, Updates card showing everything up to date. End on the docs URL. | Documentation: ue-mcp.com/docs/studio |

@@ -146,8 +146,8 @@
 <body>
 <main>
   <div class="brand"><span class="mark"></span><span class="name">ue-mcp</span><span class="product">Studio</span></div>
-  <h1>Initial Setup</h1>
-  <p class="lede">Every choice here can be changed later.</p>
+  <h1 id="title">Starting Studio</h1>
+  <p class="lede" id="lede" hidden>Every choice here can be changed later.</p>
   <ol class="steps" id="steps"><li>Dependencies</li><li>Bridge</li><li>MCP server</li></ol>
   <div class="card" id="step"><p class="muted"><span class="spinner"></span>Checking</p></div>
 </main>
@@ -156,6 +156,8 @@
   var studio = window.ue && window.ue.studio;
   var step = document.getElementById("step");
   var stepItems = document.getElementById("steps").children;
+  var title = document.getElementById("title");
+  var lede = document.getElementById("lede");
   var spin = '<span class="spinner"></span>';
   var waiting = null;
   // When Install started (ms); until the bridge lands on disk, keep showing progress.
@@ -164,8 +166,12 @@
 
   // Steps before `stage` show as done and `stage` as current; no stage clears the strip.
   // `pages` is [current, count] for the setup pages under Bridge, or "done" once they are behind.
+  // Dependencies and Bridge are the setup choices; the MCP server stage runs on every launch.
   function render(html, stage, pages) {
     step.innerHTML = html;
+    var setup = stage === 0 || stage === 1;
+    title.textContent = setup ? "Initial Setup" : "Starting Studio";
+    lede.hidden = !setup;
     step.classList.remove("paged");
     step.style.minHeight = "";
     for (var i = 0; i < stepItems.length; i++) {
