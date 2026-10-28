@@ -126,6 +126,8 @@ Specs: each image at least 1920x1080, JPEG or PNG, under 3 MB each, under 25 MB 
 9. **Ask Studio.** The Ask Studio prompt at the cursor over the level viewport, with its context chip.
 10. **Chat about this.** The context menu on a selected actor in the Outliner with **Chat about this**.
 11. **Settings.** Settings > General with the Updates card (Studio, Editor plugin, ue-mcp rows) and Settings > Approvals & review with the **Ask first** rows, one per kind.
+    - `08-status-after-setup.png`: the editor after setup, with Studio docked in the UE-MCP Studio tab on Settings > General: the Appearance themes and the Updates card reading **Up to date** on the Beta channel.
+    - `09-settings-sign-in.png`: Studio in its own window on Settings > Models & accounts: the Claude sign-in (from Claude Code) and ChatGPT sign-in, the API keys, custom endpoints, and the route order with the route each model runs on.
 
 ## Video shot list (60 to 90 seconds)
 
