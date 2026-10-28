@@ -530,7 +530,7 @@ namespace StudioDockImpl
 		}
 		if (FStudioWindow::IsOpen())
 		{
-			return LOCTEXT("DockOldStudio", "This version of Studio opens in its own window. Update Studio from its Settings > Update to dock it here.");
+			return LOCTEXT("DockOldStudio", "This version of Studio opens in its own window. Update Studio from the Updates card in its Settings > General to dock it here.");
 		}
 		FStudioDaemonInfo Info;
 		if (FStudioDaemon::ReadLive(Info))

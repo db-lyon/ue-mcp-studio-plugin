@@ -422,7 +422,7 @@ void SStudioPanel::RequestUpdates(const FStudioDaemonInfo& Info)
 		}
 #endif
 		Self->UpdateText = Ready.Num() > 0
-			? FText::Format(LOCTEXT("UpdatesReady", "Updates: {0} ready. Install from Studio's Settings > Update."), FText::FromString(FString::Join(Ready, TEXT(" and "))))
+			? FText::Format(LOCTEXT("UpdatesReady", "Updates: {0} ready. Install from the Updates card in Studio's Settings > General."), FText::FromString(FString::Join(Ready, TEXT(" and "))))
 			: FText::Format(LOCTEXT("UpdatesCurrent", "Updates: Studio {0} and the editor plugin {1} are current"), FText::FromString(Installed), FText::FromString(PluginInstalled.IsEmpty() ? TEXT("(engine)") : PluginInstalled));
 	});
 	Request->ProcessRequest();
