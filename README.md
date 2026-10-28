@@ -1,6 +1,6 @@
 # UE-MCP Studio editor plugin
 
-The Unreal Editor plugin for [UE-MCP Studio](https://github.com/db-lyon/ue-mcp-studio): the toolbar button and Tools menu entry that open Studio, the UE-MCP Studio tab that holds docked Studio and the setup page, the native calls the setup page uses, and the launch of the project's [ue-mcp](https://github.com/db-lyon/ue-mcp) daemon. On first start it installs ue-mcp and the Studio extension for the project. Free and open source under the MIT license.
+The Unreal Editor plugin for [UE-MCP Studio](https://github.com/db-lyon/ue-mcp-studio): the toolbar button and Tools menu entry that open Studio, the UE-MCP Studio tab that holds docked Studio and the setup page, the native calls the setup page uses, and the launch of the project's [ue-mcp](https://github.com/db-lyon/ue-mcp) daemon. On first start the UE-MCP Studio tab lists what the plugin installs and where: the bridge plugin, the ue-mcp server from npm, the Studio extension and Studio's window app. Nothing installs or downloads until you give consent there. Free and open source under the MIT license.
 
 ## Install
 
@@ -14,7 +14,7 @@ Studio runs in its own window, a separate process, so it keeps working while the
 
 Until Studio can run, the UE-MCP Studio tab shows the setup page, then the state of the editor, the daemon and updates.
 
-Studio's **Settings > Update** keeps the plugin, the Studio extension and ue-mcp current with one button.
+The **Updates** card under Studio's **Settings > General** keeps the plugin, the Studio extension and ue-mcp current with one button.
 
 ## Layout
 
@@ -32,4 +32,4 @@ Bump `VersionName` (and `Version`) in `UE_MCP_Studio.uplugin`, commit, then:
 node scripts/release.mjs --publish --notes-file notes.md
 ```
 
-Every release builds UE 5.7 and 5.8 and refuses to publish without both zips.
+`--engines` defaults to `5.7,5.8`. `--publish` refuses to publish without a zip for each engine in that list, and checks no engine outside it, so a narrowed `--engines` publishes a release without the other engines' zips.
