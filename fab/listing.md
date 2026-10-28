@@ -10,41 +10,76 @@ Editor plugin that installs and opens UE-MCP Studio, an agent that works in Unre
 
 ## Long description
 
-UE-MCP Studio is an agent that works inside Unreal Editor through ue-mcp's editor actions. This plugin is the editor side of Studio. It sets Studio up for your project, starts it, and shows it.
+UE-MCP Studio is a client for working with AI models inside Unreal Editor. You chat with it in its own window beside the editor or docked in an editor tab. It reads and changes your project using UE-MCP's editor actions, the same ones any MCP client gets: Blueprints, materials, levels, Niagara, PCG, animation, GAS, UMG, Sequencer, builds and more.
 
-What the plugin does:
+**Ask from the editor**
 
-- Adds a **Studio** button to the level editor toolbar, **Tools > UE-MCP Studio** and the console command `Studio.Open`.
-- Adds the **UE-MCP Studio** tab. Until Studio can run, the tab shows a setup page that checks for Node.js, installs the UE-MCP bridge plugin for the project and starts the project's ue-mcp daemon. After that, it shows the status of the daemon, the editor connection, the window and updates.
-- Starts the project's ue-mcp daemon with the editor. The daemon is a separate process and keeps running when the editor closes.
-- Opens Studio in its own window, a separate process, so the chat keeps working while the editor is busy. **Dock in editor** shows the same window inside the UE-MCP Studio tab, where it moves, resizes and hides with the tab. **Open as window** brings it back out. The choice is kept per project.
-- Adds **Ask Studio**: Ctrl+Alt+Space or Ctrl+Alt+right-click opens a one-line prompt at the cursor, with what is under the cursor (a point in the level, a graph and its nodes) as context. **Chat about this** on selected actors and assets does the same with them as context.
-- Adds the **UE-MCP Docs** tab, which shows the ue-mcp documentation inside the editor.
+Press `Ctrl+Alt+Space` anywhere in the editor, or `Ctrl+Alt+right-click`, to open a prompt at your cursor that starts a new session. Over the level viewport it brings the point under the cursor and the actor there, and the right-click also brings your selected actors. Over a Blueprint, material, Niagara or other graph it brings the graph, the node under the cursor and the selected nodes. **Chat about this** in the context menu of selected actors or assets does the same. The reply appears in the prompt, and **Continue this thread** opens the session in Studio. The shortcut can be changed in Editor Preferences.
 
-What installs at first start, and only after you allow it:
+**Keeps working while the editor is busy**
 
-The first time you open Studio, the plugin asks before it downloads or installs anything. It lists each part and where it goes. Nothing is downloaded until you choose Allow, and you are asked once per user.
+Studio runs in its own process. When an editor call blocks the editor, the chat shows "Editor busy" with the call, a timer and a Stop button instead of locking up. A restart or rebuild shows each step with a timer.
+
+**Survives crashes and restarts**
+
+When the editor closes or crashes, a docked Studio becomes its own window, keeps the conversation, and shows "Editor not running" with a Start button. When the editor starts again, Studio docks back into its UE-MCP Studio tab.
+
+**Use the models you already have**
+
+- Your own API keys for Anthropic, OpenAI and Google.
+- Your own OpenAI-compatible endpoints, such as a model server on your machine: a base URL, an optional key and the models it lists.
+- Sign in with ChatGPT to run OpenAI models on your ChatGPT plan.
+- Claude models through your own Claude Code login. You sign in with `claude /login` in a terminal, and Studio picks up that login. Studio has no Claude sign-in of its own and never reads or stores your Claude credentials.
+
+Model use is billed or limited by each provider under your own account.
+
+**You approve what the agent changes**
+
+**Settings > Approvals & review** sets each kind. Shell commands and file changes are Ask, In project or Anywhere. Restarting or rebuilding the editor, and ue-mcp actions that delete or overwrite, are Ask or Allow. Every kind starts at Ask. A waiting call shows the exact command, diff or action in the chat until you choose Allow, Allow for this session or Deny. Reads and searches run without asking.
+
+**Review each turn**
+
+After a turn that changed files, a review card lists the changes by type, each with its diff and Keep or Revert, and Revert all. Assets show Unreal's own diff with before and after values and a picture of each version, and Blueprints also show a Blueprint Diff of their variables, graphs and components. **Open in Unreal diff** opens the engine's diff. Each session keeps a timeline of checkpoints with Restore to here and Undo.
+
+**Playtests**
+
+`/playtest` drafts a playtest of what the conversation is about: a Play In Editor test script whose steps are checked automatically or by you. Edit changes the steps, and Start playtest runs it. **Assign to subagent** hands a playtest to a subagent that changes the project and runs it again until every step passes or it needs you, and each attempt can be reverted. The Playtests page lists every playtest in the project with its latest run.
+
+**Mentions and commands**
+
+Type `@` to mention an asset, a level actor or a project file. `/action` runs one ue-mcp action and `/flow` runs one of the project's flows, each with a form for its inputs.
+
+**Worker**
+
+Studio's built-in subagent. **Settings > Agents** sets its model and effort, and whether it starts when you ask or when work splits into independent parts. It runs on the main agent's sign-in or key.
+
+**Setup**
+
+The first time you open Studio, the plugin lists every part it will download and where it goes, and installs nothing until you choose Allow. A setup page then checks for Node.js, installs the UE-MCP bridge plugin for the project with a page for each group of options and a review, and starts the project's ue-mcp daemon.
+
+**Updates**
+
+**Settings > General > Updates** lists Studio, the editor plugin, the bridge plugin and ue-mcp with the installed and latest versions. An update waits until no turn is running, and Restart now applies it at once. The Beta channel also takes prereleases. The plugin installed from Fab updates through your Fab Library.
+
+**Feedback**
+
+The Feedback button files a problem or an idea as a GitHub issue on Studio's tracker, with no GitHub account needed. Agents can also report gaps they find in ue-mcp. **Settings > Approvals & review** sets whether you approve each report, reports file automatically, or they are held for you.
+
+**Requirements**
+
+- Windows 10 or 11 (Win64) and Unreal Engine 5.7 or 5.8.
+- Node.js 20 or newer, installed by you from nodejs.org.
+- The Microsoft Edge WebView2 Runtime for Studio's window, included in Windows 11. Without it, Studio opens in your web browser.
+- An internet connection, and an account or API key with at least one model provider.
+
+**What installs at first start, after you allow it**
 
 - The UE-MCP bridge plugin, as prebuilt binaries, into your project's `Plugins/UE_MCP_Bridge` folder, from the ue-mcp GitHub releases.
-- The ue-mcp server from npm, run with npx and kept in npm's cache.
-- The Studio extension (the agent, its UI and Studio's window app) into `%USERPROFILE%\.ue-mcp`, from the UE-MCP Studio GitHub releases.
+- The ue-mcp server from npm, run with npx.
+- The Studio extension (the agent, its UI and its window app) into `%USERPROFILE%\.ue-mcp`, from the UE-MCP Studio GitHub releases.
+- Only for Claude models on your Claude Code login: Anthropic's Claude runtime, unmodified, from npm.
 
-Models: Studio runs models from Anthropic, OpenAI and Google with your own API key, or with a ChatGPT sign-in for OpenAI models. Claude models can also run on your Claude plan through your Claude Code login: you run `claude /login` in a terminal and Studio reads that login. Studio has no Claude sign-in of its own and never sees your Claude credentials. You need an account or API key with at least one of these providers. Model use is billed or limited by that provider.
-
-Approvals: **Settings > Approvals & review** sets, per kind, whether the agent asks first: shell commands, file changes, restarting or rebuilding the editor, and ue-mcp actions that delete or overwrite. Each kind is Ask or Allow, and shell commands and file changes can also be allowed only inside the project folder. A new install asks for all four. The settings are kept per project. An approval waits in the chat for Allow, Allow for this session or Deny.
-
-Prerequisites:
-
-- Windows 10 or 11.
-- Unreal Engine 5.7 or 5.8.
-- Node.js 20 or newer (LTS), installed by you from nodejs.org. The plugin does not install it.
-- Microsoft Edge WebView2 Runtime for Studio's window. Windows 11 includes it. Without it, Studio opens in your web browser.
-- An internet connection for the first-start install, updates and model calls.
-- Visual Studio with the Desktop development with C++ workload is needed only to build the bridge from source. Studio's own setup installs prebuilt binaries and does not need it.
-
-License: this Fab distribution is under the Fab EULA (Standard License). The plugin's source, the Studio extension and ue-mcp are also published under the MIT license on GitHub.
-
-Documentation: https://ue-mcp.com/docs/studio
+Studio is free, and its source is MIT-licensed on GitHub. The copy on Fab is under the Fab EULA (Standard License). Docs: https://ue-mcp.com/docs/studio
 
 ## Technical details
 
