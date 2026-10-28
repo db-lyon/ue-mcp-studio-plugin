@@ -61,8 +61,6 @@ The first time you open Studio, the plugin lists every part it will download and
 
 **Settings > General > Updates** lists Studio, the editor plugin, the bridge plugin and ue-mcp with the installed and latest versions. An update waits until no turn is running, and Restart now applies it at once. The Beta channel also takes prereleases. The plugin installed from Fab updates through your Fab Library.
 
-Each project keeps its own Studio version. Updating Studio in one project leaves your other projects on theirs, and a project that is behind says so with **Update this project** or **Keep** its current version.
-
 **Feedback**
 
 The Feedback button files a problem or an idea as a GitHub issue on Studio's tracker, with no GitHub account needed. Agents can also report gaps they find in ue-mcp. **Settings > Approvals & review** sets whether you approve each report, reports file automatically, or they are held for you.
