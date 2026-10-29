@@ -1,6 +1,6 @@
 # Third-party software declaration: UE-MCP Studio
 
-This declaration covers the UE-MCP Studio editor plugin (`UE_MCP_Studio`, version 0.1.6-beta.2) as distributed on Fab, and every piece of third-party software it ships, requires or installs.
+This declaration covers the UE-MCP Studio editor plugin (`UE_MCP_Studio`, version 0.1.6) as distributed on Fab, and every piece of third-party software it ships, requires or installs.
 
 The Fab package contains only the plugin's C++ source, its `.uplugin` and `Resources/web` (the bundled setup page and three fonts). Everything in Sections 3 to 6 is downloaded at first start, and only after the user chooses **Allow** in the plugin's install consent prompt. The plugin never installs Node.js, the WebView2 Runtime or Visual Studio.
 
@@ -32,9 +32,9 @@ None of these is shipped or installed by the plugin. When Node.js is missing, th
 
 | Component | Version | License | Use | Source |
 |---|---|---|---|---|
-| ue-mcp | 1.4.11-beta.9 at the time of writing. The plugin runs the version matching the installed bridge, else the one Studio's release manifest names | MIT, Copyright (c) 2026 David Bingham | MCP server and daemon for the project, a separate Node.js process | https://www.npmjs.com/package/ue-mcp, https://github.com/db-lyon/ue-mcp |
+| ue-mcp | 1.4.11 at the time of writing. The plugin runs the version matching the installed bridge, else the one Studio's release manifest names | MIT, Copyright (c) 2026 David Bingham | MCP server and daemon for the project, a separate Node.js process | https://www.npmjs.com/package/ue-mcp, https://github.com/db-lyon/ue-mcp |
 
-Downloaded by `npx` from registry.npmjs.org into npm's cache (`%LOCALAPPDATA%\npm-cache\_npx`). Its runtime dependency closure, from `npm install ue-mcp@1.4.11-beta.9 --omit=dev` and each package's `license` field, our own packages left out (141 packages):
+Downloaded by `npx` from registry.npmjs.org into npm's cache (`%LOCALAPPDATA%\npm-cache\_npx`). Its runtime dependency closure, from `npm install ue-mcp@1.4.11 --omit=dev` and each package's `license` field, our own packages left out (141 packages):
 
 | Package | Version | License |
 |---|---|---|
@@ -51,7 +51,7 @@ Downloaded by `npx` from registry.npmjs.org into npm's cache (`%LOCALAPPDATA%\np
 | async-lock | 1.4.1 | MIT |
 | available-typed-arrays | 1.0.7 | MIT |
 | base64-js | 1.5.1 | MIT |
-| body-parser | 2.3.0 | MIT |
+| body-parser | 2.4.0 | MIT |
 | buffer | 6.0.3 | MIT |
 | bytes | 3.1.2 | MIT |
 | call-bind | 1.0.9 | MIT |
@@ -131,7 +131,7 @@ Downloaded by `npx` from registry.npmjs.org into npm's cache (`%LOCALAPPDATA%\np
 | negotiator | 1.1.0 | MIT |
 | object-assign | 4.1.1 | MIT |
 | object-inspect | 1.13.4 | MIT |
-| on-finished | 2.4.1 | MIT |
+| on-finished | 2.4.2 | MIT |
 | once | 1.4.0 | ISC |
 | pako | 1.0.11 | (MIT AND Zlib) |
 | parseurl | 1.3.3 | MIT |
@@ -184,7 +184,7 @@ Downloaded by `npx` from registry.npmjs.org into npm's cache (`%LOCALAPPDATA%\np
 
 | Component | Version | License | Use | Source |
 |---|---|---|---|---|
-| UE_MCP_Bridge (Unreal Editor plugin) | Same as ue-mcp (1.4.11-beta.9 at the time of writing) | MIT, Copyright (c) 2026 David Bingham | Editor-side bridge the ue-mcp server talks to | https://github.com/db-lyon/ue-mcp (`plugin/ue_mcp_bridge`) |
+| UE_MCP_Bridge (Unreal Editor plugin) | Same as ue-mcp (1.4.11 at the time of writing) | MIT, Copyright (c) 2026 David Bingham | Editor-side bridge the ue-mcp server talks to | https://github.com/db-lyon/ue-mcp (`plugin/ue_mcp_bridge`) |
 
 Installed by `ue-mcp init` as prebuilt binaries into `<Project>/Plugins/UE_MCP_Bridge`, downloaded from the ue-mcp GitHub release for that version (`UE_MCP_Bridge-<version>-UE<engine>-Win64.zip`). It links only Unreal Engine modules and plugins and contains no third-party code libraries.
 
@@ -192,10 +192,10 @@ Installed by `ue-mcp init` as prebuilt binaries into `<Project>/Plugins/UE_MCP_B
 
 | Component | Version | License | Use | Source |
 |---|---|---|---|---|
-| UE-MCP Studio extension (agent, web UI, `studio-window.exe`) | 0.1.24-beta.17 at the time of writing | MIT, Copyright (c) 2026 David Bingham | The agent, its UI, and Studio's window | https://github.com/db-lyon/ue-mcp-studio |
+| UE-MCP Studio extension (agent, web UI, `studio-window.exe`) | 0.1.24 at the time of writing | MIT, Copyright (c) 2026 David Bingham | The agent, its UI, and Studio's window | https://github.com/db-lyon/ue-mcp-studio |
 | Microsoft WebView2 SDK (static loader `WebView2LoaderStatic.lib`, linked into `studio-window.exe`) | 1.0.4191.47 | BSD-3-Clause (Microsoft) | Hosts the UI in Studio's window | https://www.nuget.org/packages/Microsoft.Web.WebView2 |
 
-Downloaded from the GitHub releases of db-lyon/ue-mcp-studio (`latest.json`, `studio-<version>.zip`) into `%USERPROFILE%\.ue-mcp\extensions\studio`; the window app is copied to `%USERPROFILE%\.ue-mcp\studio\window`. The release carries a third-party notices file with each package's license text, produced by `scripts/notices.mjs`. The packages bundled in the agent and the UI, as that script lists them for 0.1.24-beta.17 (125 packages):
+Downloaded from the GitHub releases of db-lyon/ue-mcp-studio (`latest.json`, `studio-<version>.zip`) into `%USERPROFILE%\.ue-mcp\extensions\studio`; the window app is copied to `%USERPROFILE%\.ue-mcp\studio\window`. The release carries a third-party notices file with each package's license text, produced by `scripts/notices.mjs`. The packages bundled in the agent and the UI, as that script lists them for 0.1.24 (125 packages):
 
 | Package | Version | License |
 |---|---|---|
@@ -312,7 +312,7 @@ Downloaded from the GitHub releases of db-lyon/ue-mcp-studio (`latest.json`, `st
 | style-to-object | 1.0.14 | MIT |
 | trim-lines | 3.0.1 | MIT |
 | trough | 2.2.0 | MIT |
-| ue-mcp | 1.4.11-beta.9 | MIT |
+| ue-mcp | 1.4.11 | MIT |
 | unified | 11.0.5 | MIT |
 | unist-util-is | 6.0.1 | MIT |
 | unist-util-position | 5.0.0 | MIT |
@@ -371,7 +371,7 @@ Fab's Third Party Software Submission Form (https://docs.google.com/forms/d/e/1F
     - Distribution: not shipped; the user installs it from nodejs.org
 
 2. **ue-mcp** (npm package, with 141 runtime npm dependencies under MIT, ISC, BSD-2-Clause, BSD-3-Clause, Apache-2.0, Zlib, Unlicense and Python-2.0)
-    - Version: 1.4.11-beta.9 at submission
+    - Version: 1.4.11 at submission
     - License: MIT
     - License URL: https://github.com/db-lyon/ue-mcp/blob/main/LICENSE
     - Source: https://www.npmjs.com/package/ue-mcp
@@ -379,7 +379,7 @@ Fab's Third Party Software Submission Form (https://docs.google.com/forms/d/e/1F
     - Distribution: not shipped; downloaded from registry.npmjs.org at first start after the user's consent
 
 3. **UE_MCP_Bridge** (Unreal Editor plugin)
-    - Version: matches ue-mcp (1.4.11-beta.9 at submission)
+    - Version: matches ue-mcp (1.4.11 at submission)
     - License: MIT
     - License URL: https://github.com/db-lyon/ue-mcp/blob/main/LICENSE
     - Source: https://github.com/db-lyon/ue-mcp
@@ -387,7 +387,7 @@ Fab's Third Party Software Submission Form (https://docs.google.com/forms/d/e/1F
     - Distribution: not shipped; prebuilt binaries downloaded from GitHub releases into the project's Plugins folder at first start after the user's consent
 
 4. **UE-MCP Studio extension** (agent, UI and studio-window.exe, with 114 bundled npm packages under MIT, ISC, Apache-2.0, BSD-3-Clause, OFL-1.1 and Unlicense, plus the Anthropic SDK and the Claude Agent SDK in entry 6)
-    - Version: 0.1.24-beta.17 at submission
+    - Version: 0.1.24 at submission
     - License: MIT
     - License URL: https://github.com/db-lyon/ue-mcp-studio/blob/main/LICENSE
     - Source: https://github.com/db-lyon/ue-mcp-studio
