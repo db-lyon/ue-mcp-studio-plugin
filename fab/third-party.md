@@ -358,7 +358,7 @@ The plugin, the ue-mcp daemon and Studio's window talk to each other on 127.0.0.
 
 Fab's Third Party Software Submission Form (https://docs.google.com/forms/d/e/1FAIpQLSe5XW5i2Dkm3QTDw5UyRYEn3eUeBXLIACE8s_yidqt7vG1ziA/viewform) takes at most 10 entries. Its first page asks for Seller Name, Plugin Name and Total Number of TPS (1 to 10). The questions for each entry appear only after a count is chosen and could not be read without filling the form, so each entry below gives name, version, license, license URL, source, use and distribution for pasting into whatever fields it shows.
 
-- **Seller Name:** (your Fab seller name)
+- **Seller Name:** ue-mcp support
 - **Plugin Name:** UE-MCP Studio
 - **Total Number of TPS:** 9
 
