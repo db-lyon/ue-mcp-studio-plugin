@@ -2,7 +2,7 @@
 
 This declaration covers the UE-MCP Studio editor plugin (`UE_MCP_Studio`, version 0.1.6) as distributed on Fab, and every piece of third-party software it ships, requires or installs.
 
-The Fab package contains only the plugin's C++ source, its `.uplugin` and `Resources/web` (the bundled setup page and three fonts). Everything in Sections 3 to 6 is downloaded at first start, and only after the user chooses **Allow** in the plugin's install consent prompt. The plugin never installs Node.js, the WebView2 Runtime or Visual Studio.
+The Fab package contains only the plugin's C++ source, its `.uplugin`, `Resources/web` (the bundled setup page) and `Source/ThirdParty/Fonts` (three fonts the setup page loads). Everything in Sections 3 to 6 is downloaded at first start, and only after the user chooses **Allow** in the plugin's install consent prompt. The plugin never installs Node.js, the WebView2 Runtime or Visual Studio.
 
 No component listed here is under GPL, AGPL, EPL or LGPL. One component is not open source: the Claude Agent SDK and its runtime (Section 6), used only to run Claude models on the user's Claude plan through the user's Claude Code login.
 
@@ -10,9 +10,9 @@ No component listed here is under GPL, AGPL, EPL or LGPL. One component is not o
 
 | Component | Version | License | Use | Source |
 |---|---|---|---|---|
-| Plus Jakarta Sans (`Resources/web/fonts/PlusJakartaSans.woff2`) | Variable font | SIL Open Font License 1.1 | Font loaded by the bundled setup page (`bootstrap.html`) | https://github.com/tokotype/PlusJakartaSans |
-| JetBrains Mono (`Resources/web/fonts/JetBrainsMono.woff2`) | Variable font | SIL Open Font License 1.1 | Font loaded by the setup page | https://github.com/JetBrains/JetBrainsMono |
-| Instrument Serif Italic (`Resources/web/fonts/InstrumentSerif_Italic.woff2`) | Single style | SIL Open Font License 1.1 | Font loaded by the setup page | https://github.com/Instrument/instrument-serif |
+| Plus Jakarta Sans (`Source/ThirdParty/Fonts/PlusJakartaSans.woff2`) | Variable font | SIL Open Font License 1.1 | Font loaded by the bundled setup page (`bootstrap.html`) | https://github.com/tokotype/PlusJakartaSans |
+| JetBrains Mono (`Source/ThirdParty/Fonts/JetBrainsMono.woff2`) | Variable font | SIL Open Font License 1.1 | Font loaded by the setup page | https://github.com/JetBrains/JetBrainsMono |
+| Instrument Serif Italic (`Source/ThirdParty/Fonts/InstrumentSerif_Italic.woff2`) | Single style | SIL Open Font License 1.1 | Font loaded by the setup page | https://github.com/Instrument/instrument-serif |
 
 Each font's license text ships beside it (`*_OFL.txt`). The fonts are unmodified and are not sold on their own.
 
@@ -424,7 +424,7 @@ Fab's Third Party Software Submission Form (https://docs.google.com/forms/d/e/1F
     - License URL: https://openfontlicense.org
     - Source: https://github.com/tokotype/PlusJakartaSans, https://github.com/JetBrains/JetBrainsMono, https://github.com/Instrument/instrument-serif
     - Use: loaded by the plugin's bundled setup page
-    - Distribution: shipped in `Resources/web/fonts`, unmodified, each with its OFL text
+    - Distribution: shipped in `Source/ThirdParty/Fonts`, unmodified, each with its OFL text
 
 9. **Model provider and download services:** Anthropic API, OpenAI API and sign-in, Google Gemini API, npm registry, GitHub releases
     - Version: not applicable (online services)
