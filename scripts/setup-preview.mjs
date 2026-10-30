@@ -17,7 +17,8 @@ import { fileURLToPath } from "node:url";
 import { SCENARIOS, THEMES, planFor, stubbedPage } from "./setup-fake.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const web = path.resolve(here, "../StudioHost/Plugins/UE_MCP_Studio/Resources/web");
+const pluginDir = path.resolve(here, "../StudioHost/Plugins/UE_MCP_Studio");
+const web = path.join(pluginDir, "Resources", "web");
 const arg = (name) => {
   const i = process.argv.indexOf(name);
   return i > 0 ? process.argv[i + 1] : undefined;
@@ -51,8 +52,11 @@ http.createServer((req, res) => {
     res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
     return res.end(body);
   }
-  const file = path.join(web, decodeURIComponent(url.pathname));
-  if (!file.startsWith(web) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
+  // The page's fonts sit in Source/ThirdParty, which its relative URLs resolve to from the root.
+  const rel = decodeURIComponent(url.pathname);
+  const root = rel.startsWith("/Source/ThirdParty/") ? path.join(pluginDir, "Source", "ThirdParty") : web;
+  const file = path.join(root === web ? web : pluginDir, rel);
+  if (!file.startsWith(root) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
     res.writeHead(404);
     return res.end();
   }
