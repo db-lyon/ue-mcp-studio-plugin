@@ -1,6 +1,6 @@
 # Third-party software declaration: UE-MCP Studio
 
-This declaration covers the UE-MCP Studio editor plugin (`UE_MCP_Studio`, version 0.1.6) as distributed on Fab, and every piece of third-party software it ships, requires or installs.
+This declaration covers the UE-MCP Studio editor plugin (`UE_MCP_Studio`, version 0.1.7) as distributed on Fab, and every piece of third-party software it ships, requires or installs.
 
 The Fab package contains only the plugin's C++ source, its `.uplugin`, `Resources/web` (the bundled setup page) and `Source/ThirdParty/Fonts` (three fonts the setup page loads). Everything in Sections 3 to 6 is downloaded at first start, and only after the user chooses **Allow** in the plugin's install consent prompt. The plugin never installs Node.js, the WebView2 Runtime or Visual Studio.
 
