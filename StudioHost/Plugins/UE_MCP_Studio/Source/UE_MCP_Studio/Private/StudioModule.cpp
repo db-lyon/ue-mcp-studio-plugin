@@ -71,8 +71,8 @@ private:
 	IConsoleObject* OpenCommand = nullptr;
 
 	/**
-	 * Saved/UE_MCP_Studio/plugin.json: this plugin's version, folder, and whether it is
-	 * the Fab build, so Studio reads what the plugin is rather than guessing from its path.
+	 * Saved/UE_MCP_Studio/plugin.json: this plugin's version and folder, so Studio reads
+	 * what the plugin is rather than guessing from its path.
 	 */
 	static void PublishPluginInfo()
 	{
@@ -81,25 +81,9 @@ private:
 		{
 			return;
 		}
-		TSharedPtr<FJsonObject> Descriptor = Plugin->GetDescriptor().CachedJson;
-		if (!Descriptor.IsValid())
-		{
-			FString Text;
-			if (FFileHelper::LoadFileToString(Text, *Plugin->GetDescriptorFileName()))
-			{
-				FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Descriptor);
-			}
-		}
-		FString FabUrl;
-		if (Descriptor.IsValid())
-		{
-			Descriptor->TryGetStringField(TEXT("FabURL"), FabUrl);
-		}
 		TSharedRef<FJsonObject> Out = MakeShared<FJsonObject>();
 		Out->SetStringField(TEXT("version"), Plugin->GetDescriptor().VersionName);
 		Out->SetStringField(TEXT("dir"), FPaths::ConvertRelativePathToFull(Plugin->GetBaseDir()));
-		Out->SetBoolField(TEXT("fab"), UE_MCP_STUDIO_FAB != 0);
-		Out->SetStringField(TEXT("fabUrl"), FabUrl);
 		FString Json;
 		FJsonSerializer::Serialize(Out, TJsonWriterFactory<>::Create(&Json));
 		const FString File = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("UE_MCP_Studio"), TEXT("plugin.json")));
