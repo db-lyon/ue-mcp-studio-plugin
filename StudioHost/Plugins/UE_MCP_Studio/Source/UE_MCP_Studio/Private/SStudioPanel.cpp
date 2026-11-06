@@ -408,19 +408,10 @@ void SStudioPanel::RequestUpdates(const FStudioDaemonInfo& Info)
 		}
 		bAvailable = false;
 		const bool bPluginUpdate = (*Plugin)->TryGetBoolField(TEXT("available"), bAvailable) && bAvailable && (*Plugin)->TryGetStringField(TEXT("latest"), Latest);
-#if UE_MCP_STUDIO_FAB
-		// Fab owns this copy's files, so its updates come from Fab.
-		if (bPluginUpdate && Ready.Num() == 0)
-		{
-			Self->UpdateText = FText::Format(LOCTEXT("UpdatesFab", "Updates: the editor plugin {0} is out. Update it from Fab."), FText::FromString(Latest));
-			return;
-		}
-#else
 		if (bPluginUpdate)
 		{
 			Ready.Add(FString::Printf(TEXT("the editor plugin %s"), *Latest));
 		}
-#endif
 		Self->UpdateText = Ready.Num() > 0
 			? FText::Format(LOCTEXT("UpdatesReady", "Updates: {0} ready. Install from the Updates card in Studio's Settings > General."), FText::FromString(FString::Join(Ready, TEXT(" and "))))
 			: FText::Format(LOCTEXT("UpdatesCurrent", "Updates: Studio {0} and the editor plugin {1} are current"), FText::FromString(Installed), FText::FromString(PluginInstalled.IsEmpty() ? TEXT("(engine)") : PluginInstalled));
