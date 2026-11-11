@@ -4,7 +4,7 @@ The Unreal Editor plugin for [UE-MCP Studio](https://github.com/db-lyon/ue-mcp-s
 
 ## Install
 
-Unreal Engine 5.7 and 5.8 on Windows, with [Node.js](https://nodejs.org) installed.
+Unreal Engine 5.7, 5.8 and 5.9 on Windows, with [Node.js](https://nodejs.org) installed.
 
 1. Download `UE_MCP_Studio-<version>-UE<engine>-Win64.zip` for your engine from the [latest release](https://github.com/db-lyon/ue-mcp-studio-plugin/releases/latest).
 2. Unzip it into your project's `Plugins/` folder, so that `Plugins/UE_MCP_Studio/UE_MCP_Studio.uplugin` exists.
@@ -32,4 +32,4 @@ Bump `VersionName` (and `Version`) in `UE_MCP_Studio.uplugin`, commit, then:
 node scripts/release.mjs --publish --notes-file notes.md
 ```
 
-`--engines` defaults to `5.7,5.8`. `--publish` refuses to publish without a zip for each engine in that list, and checks no engine outside it, so a narrowed `--engines` publishes a release without the other engines' zips.
+`--engines` defaults to `5.7,5.8,5.9`. `--publish` refuses to publish without a zip for each engine in that list, and checks no engine outside it, so a narrowed `--engines` publishes a release without the other engines' zips.
