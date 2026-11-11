@@ -33,3 +33,5 @@ node scripts/release.mjs --publish --notes-file notes.md
 ```
 
 `--engines` defaults to `5.7,5.8,5.9`. `--publish` refuses to publish without a zip for each engine in that list, and checks no engine outside it, so a narrowed `--engines` publishes a release without the other engines' zips.
+
+When nothing under the plugin's `Source` changed since the last published release, and the descriptor changed only in `Version` and `VersionName`, each engine's zip reuses that release's binaries with this tree's descriptor, `Resources` and `Content`. Otherwise, or with `--rebuild`, RunUAT BuildPlugin compiles each engine from `C:/Program Files/Epic Games/UE_<engine>` and fails on any compiler warning in the plugin's own sources. A stable version is published as the latest release, which Studio's updater follows; a prerelease is published beside it and never becomes latest.
