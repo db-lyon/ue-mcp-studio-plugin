@@ -372,20 +372,89 @@ FString FStudioDaemon::ExtensionsDir()
 	return Dir.IsEmpty() ? FPaths::Combine(UserDir(), TEXT("extensions")) : Dir;
 }
 
+namespace
+{
+	FString PackageVersionAt(const FString& Dir)
+	{
+		FString Text;
+		if (!FFileHelper::LoadFileToString(Text, *FPaths::Combine(Dir, TEXT("package.json"))))
+		{
+			return FString();
+		}
+		TSharedPtr<FJsonObject> Json;
+		FString Version;
+		if (FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Json) && Json.IsValid())
+		{
+			Json->TryGetStringField(TEXT("version"), Version);
+		}
+		return Version;
+	}
+
+	/** The key ue-mcp files this project under in state.json: its folder, forward slashes, lower case on Windows. */
+	FString ProjectStateKey()
+	{
+		FString Root = FPaths::GetPath(ProjectFile());
+		FPaths::NormalizeDirectoryName(Root);
+		Root.ReplaceInline(TEXT("\\"), TEXT("/"));
+		while (Root.Len() > 3 && Root.EndsWith(TEXT("/")))
+		{
+			Root.LeftChopInline(1);
+		}
+#if PLATFORM_WINDOWS
+		Root = Root.ToLower();
+#endif
+		return Root;
+	}
+
+	/** The Studio version this project records in ue-mcp's state.json, or empty. */
+	FString RecordedStudioVersion(const FString& UserDirPath)
+	{
+		FString Text;
+		if (!FFileHelper::LoadFileToString(Text, *FPaths::Combine(UserDirPath, TEXT("state.json"))))
+		{
+			return FString();
+		}
+		TSharedPtr<FJsonObject> State;
+		if (!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), State) || !State.IsValid())
+		{
+			return FString();
+		}
+		const TSharedPtr<FJsonObject>* Projects = nullptr;
+		const TSharedPtr<FJsonObject>* Project = nullptr;
+		const TSharedPtr<FJsonObject>* Extensions = nullptr;
+		FString Version;
+		if (State->TryGetObjectField(TEXT("projects"), Projects) && (*Projects)->TryGetObjectField(ProjectStateKey(), Project)
+			&& (*Project)->TryGetObjectField(TEXT("extensions"), Extensions))
+		{
+			(*Extensions)->TryGetStringField(TEXT("studio"), Version);
+		}
+		return Version;
+	}
+}
+
 FString FStudioDaemon::InstalledExtensionVersion()
 {
-	FString Text;
-	if (!FFileHelper::LoadFileToString(Text, *FPaths::Combine(ExtensionsDir(), TEXT("studio"), TEXT("package.json"))))
+	// ue-mcp keeps each version side by side as studio@<version> and records which one a project loads.
+	// Reading only the old unversioned folder took an installed Studio for a missing one, and every editor
+	// start then reinstalled it from the stable channel and restarted the daemon under a running turn.
+	const FString Root = ExtensionsDir();
+	const FString Recorded = RecordedStudioVersion(UserDir());
+	if (!Recorded.IsEmpty() && !PackageVersionAt(FPaths::Combine(Root, FString::Printf(TEXT("studio@%s"), *Recorded))).IsEmpty())
 	{
-		return FString();
+		return Recorded;
 	}
-	TSharedPtr<FJsonObject> Json;
-	FString Version;
-	if (FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Json) && Json.IsValid())
+	FString Newest;
+	TArray<FString> Dirs;
+	IFileManager::Get().FindFiles(Dirs, *FPaths::Combine(Root, TEXT("studio@*")), false, true);
+	for (const FString& Dir : Dirs)
 	{
-		Json->TryGetStringField(TEXT("version"), Version);
+		const FString Version = PackageVersionAt(FPaths::Combine(Root, Dir));
+		if (!Version.IsEmpty() && (Newest.IsEmpty() || CompareVersions(Version, Newest) > 0))
+		{
+			Newest = Version;
+		}
 	}
-	return Version;
+	return Newest.IsEmpty() ? PackageVersionAt(FPaths::Combine(Root, TEXT("studio"))) : Newest;
 }
 
 FString FStudioDaemon::ExtensionManifestUrl()
