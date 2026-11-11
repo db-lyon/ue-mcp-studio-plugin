@@ -2,7 +2,7 @@
 /**
  * Build, package and publish an editor plugin release.
  *
- *   node scripts/release.mjs [--engines 5.7,5.8] [--rebuild] [--publish] [--notes-file notes.md]
+ *   node scripts/release.mjs [--engines 5.7,5.8,5.9] [--rebuild] [--publish] [--notes-file notes.md]
  *
  * Writes release/UE_MCP_Studio-<version>-UE<engine>-Win64.zip for each engine, plus
  * release/plugin.json, the manifest Studio's updater reads. The version is the .uplugin's VersionName.
@@ -51,7 +51,7 @@ const zip = (parent, folder, out) => {
 const descriptor = JSON.parse(fs.readFileSync(UPLUGIN, "utf-8"));
 const version = descriptor.VersionName;
 if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/.test(version ?? "")) throw new Error(`UE_MCP_Studio.uplugin has no usable VersionName (${version})`);
-const engines = arg("--engines", "5.7,5.8").split(",");
+const engines = arg("--engines", "5.7,5.8,5.9").split(",");
 
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
