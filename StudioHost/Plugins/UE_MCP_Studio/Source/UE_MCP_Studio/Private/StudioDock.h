@@ -42,7 +42,13 @@ public:
 	/** Switch to docked or to a window of its own, keep the choice, and show Studio that way. */
 	static void SetDocked(bool bDocked);
 
-	/** The project keeps Studio docked. */
+	/**
+	 * Whether Studio can dock in an editor tab on this platform: Windows only. On Linux
+	 * Wayland lets no program hold its window over another's, so Studio is always a window.
+	 */
+	static bool CanDock();
+
+	/** The project keeps Studio docked (never where it cannot dock). */
 	static bool IsDockedMode();
 
 	/** Studio's window is running and can dock (it writes its side of the block). */
