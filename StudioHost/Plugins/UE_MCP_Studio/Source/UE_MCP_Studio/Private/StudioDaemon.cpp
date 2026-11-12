@@ -841,18 +841,56 @@ bool FStudioDaemon::SpawnNpx(const TArray<FString>& Commands, FString& OutError,
 	::CloseHandle(Process.hProcess);
 	return true;
 #else
-	const FString Npx = FPaths::Combine(NodeDir, TEXT("npx"));
+	// One word for the shell, whatever the path holds: single quotes, each ' as '\''.
+	auto Quote = [](const FString& Text)
+	{
+		return TEXT("'") + Text.Replace(TEXT("'"), TEXT("'\\''")) + TEXT("'");
+	};
+	// The callers write the arguments for cmd, with paths in double quotes: each quoted part is one shell word.
+	auto ShellWords = [&Quote](const FString& Arguments)
+	{
+		FString Out;
+		int32 At = 0;
+		while (At < Arguments.Len())
+		{
+			if (Arguments[At] != TEXT('"'))
+			{
+				Out.AppendChar(Arguments[At++]);
+				continue;
+			}
+			int32 End = Arguments.Find(TEXT("\""), ESearchCase::CaseSensitive, ESearchDir::FromStart, At + 1);
+			if (End == INDEX_NONE)
+			{
+				End = Arguments.Len();
+			}
+			Out += Quote(Arguments.Mid(At + 1, End - At - 1));
+			At = End + 1;
+		}
+		return Out;
+	};
+	const FString Npx = Quote(FPaths::Combine(NodeDir, TEXT("npx")));
 	TArray<FString> Steps;
 	for (const FString& Arguments : Commands)
 	{
 		Steps.Add(StdoutFile.IsEmpty()
-			? FString::Printf(TEXT("'%s' %s >> '%s' 2>&1"), *Npx, *Arguments.Replace(TEXT("\""), TEXT("'")), *Log)
-			: FString::Printf(TEXT("'%s' %s > '%s' 2>> '%s'"), *Npx, *Arguments.Replace(TEXT("\""), TEXT("'")), *StdoutFile, *Log));
+			? FString::Printf(TEXT("%s %s >> %s 2>&1"), *Npx, *ShellWords(Arguments), *Quote(Log))
+			: FString::Printf(TEXT("%s %s > %s 2>> %s"), *Npx, *ShellWords(Arguments), *Quote(StdoutFile), *Quote(Log)));
 	}
-	const FString Shell = FString::Printf(TEXT("-c \"PATH='%s':$PATH; %s\""), *NodeDir, *FString::Join(Steps, TEXT(" && ")));
-	FProcHandle Handle = FPlatformProcess::CreateProc(TEXT("/bin/sh"), *Shell, true, true, true, nullptr, 0, *FPaths::ProjectDir(), nullptr);
+	// The commands go to /bin/sh in a script of their own rather than through CreateProc's
+	// argument string, whose own quoting the paths above could break out of.
+	static int32 Runs = 0;
+	const FString Script = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("UE_MCP_Studio"),
+		FString::Printf(TEXT("npx-%u-%d.sh"), FPlatformProcess::GetCurrentProcessId(), ++Runs)));
+	const FString Body = FString::Printf(TEXT("rm -f \"$0\"\nPATH=%s:\"$PATH\"\n%s\n"), *Quote(NodeDir), *FString::Join(Steps, TEXT(" && ")));
+	if (!FFileHelper::SaveStringToFile(Body, *Script, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
+	{
+		OutError = FString::Printf(TEXT("could not write %s"), *Script);
+		return false;
+	}
+	FProcHandle Handle = FPlatformProcess::CreateProc(TEXT("/bin/sh"), *FString::Printf(TEXT("\"%s\""), *Script), true, true, true, nullptr, 0, *FPaths::ProjectDir(), nullptr);
 	if (!Handle.IsValid())
 	{
+		IFileManager::Get().Delete(*Script);
 		OutError = TEXT("could not start /bin/sh");
 		return false;
 	}

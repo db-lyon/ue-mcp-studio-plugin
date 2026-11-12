@@ -136,7 +136,9 @@ TSharedRef<SWidget> SStudioPanel::MakeLauncher()
 			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 14.f)
 			[
 				SNew(STextBlock).AutoWrapText(true)
-				.Text(LOCTEXT("LauncherAbout", "Studio runs in a process of its own, docked in an editor tab or in its own window, so the chat keeps working while the editor is busy."))
+				.Text(FStudioDock::CanDock()
+					? LOCTEXT("LauncherAbout", "Studio runs in a process of its own, docked in an editor tab or in its own window, so the chat keeps working while the editor is busy.")
+					: LOCTEXT("LauncherAboutWindow", "Studio runs in a process of its own, in its own window, so the chat keeps working while the editor is busy."))
 			]
 			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Left).Padding(0.f, 0.f, 0.f, 16.f)
 			[
@@ -154,6 +156,7 @@ TSharedRef<SWidget> SStudioPanel::MakeLauncher()
 				+ SHorizontalBox::Slot().AutoWidth()
 				[
 					SNew(SButton)
+					.Visibility(FStudioDock::CanDock() ? EVisibility::Visible : EVisibility::Collapsed)
 					.ContentPadding(FMargin(14.f, 5.f))
 					.OnClicked_Lambda([]() { FStudioDock::SetDocked(!FStudioDock::IsDockedMode()); return FReply::Handled(); })
 					[

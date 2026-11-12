@@ -408,7 +408,7 @@ namespace StudioDockImpl
 		{
 			UE_LOG(LogStudioDock, Log, TEXT("dock tab spawned for the setup page"));
 		}
-		else if (bOpening)
+		else if (bOpening && FStudioDock::CanDock())
 		{
 			UE_LOG(LogStudioDock, Log, TEXT("dock tab opened: docked"));
 			SaveMode(true);
@@ -527,6 +527,12 @@ namespace StudioDockImpl
 		if (FStudioDock::StudioCanDock())
 		{
 			return LOCTEXT("DockShowing", "UE-MCP Studio");
+		}
+		if (!FStudioDock::CanDock())
+		{
+			return FStudioWindow::IsOpen()
+				? LOCTEXT("DockNotHere", "Studio is open in its own window. On this platform it cannot dock in an editor tab.")
+				: LOCTEXT("DockStartingWindow", "Studio opens in its own window.");
 		}
 		if (FStudioWindow::IsOpen())
 		{
@@ -707,9 +713,14 @@ void FStudioDock::Shutdown()
 	DockImpl::Block = nullptr;
 }
 
+bool FStudioDock::CanDock()
+{
+	return PLATFORM_WINDOWS != 0;
+}
+
 bool FStudioDock::IsDockedMode()
 {
-	return DockImpl::SavedMode() == TEXT("docked");
+	return CanDock() && DockImpl::SavedMode() == TEXT("docked");
 }
 
 bool FStudioDock::StudioCanDock()
@@ -773,6 +784,11 @@ void FStudioDock::OpenAfterSetup()
 
 void FStudioDock::SetDocked(bool bDocked)
 {
+	// Where Studio cannot dock, asking for it changes nothing.
+	if (bDocked && !CanDock())
+	{
+		return;
+	}
 	DockImpl::SaveMode(bDocked);
 	if (bDocked)
 	{
