@@ -13,7 +13,8 @@
 	"IsBetaVersion": false,
 	"Installed": false,
 	"SupportedTargetPlatforms": [
-		"Win64"
+		"Win64",
+		"Linux"
 	],
 	"Modules": [
 		{
@@ -21,7 +22,8 @@
 			"Type": "Editor",
 			"LoadingPhase": "PostEngineInit",
 			"PlatformAllowList": [
-				"Win64"
+				"Win64",
+				"Linux"
 			]
 		}
 	]
