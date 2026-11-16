@@ -3,6 +3,7 @@
 #include "StudioDock.h"
 
 #include "StudioDaemon.h"
+#include "StudioDockCutouts.h"
 #include "StudioWindow.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Docking/LayoutExtender.h"
@@ -26,6 +27,7 @@
 #include "SStudioPanel.h"
 #include "Containers/Ticker.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/SNullWidget.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/SWindow.h"
 #include "Widgets/Text/STextBlock.h"
@@ -73,8 +75,10 @@ namespace StudioDockProtocol
 	constexpr SIZE_T Size = 256;
 	constexpr SIZE_T OffMagic = 0, OffLayout = 4;
 	constexpr SIZE_T OffPluginSeq = 8, OffPluginPid = 12, OffHost = 16, OffX = 24, OffY = 28, OffW = 32, OffH = 36, OffFlags = 40, OffFrame = 44;
+	constexpr SIZE_T OffCutoutCount = 48, OffCutouts = 96, CutoutBytes = 16;
+	constexpr int32 MaxCutouts = static_cast<int32>((Size - OffCutouts) / CutoutBytes);
 	constexpr SIZE_T OffStudioSeq = 64, OffStudioPid = 68, OffStudioMode = 72, OffRequestSeq = 76, OffRequest = 80;
-	constexpr uint32 FlagOpen = 1, FlagVisible = 2, FlagOverlay = 4;
+	constexpr uint32 FlagOpen = 1, FlagVisible = 2, FlagOverlay = 4, FlagCutouts = 8;
 	constexpr uint32 ModeNone = 0, ModeDocked = 2;
 	constexpr uint32 RequestOpenTab = 1, RequestCloseTab = 2;
 }
@@ -89,10 +93,12 @@ namespace StudioDockImpl
 		uint64 Host = 0;
 		int32 X = 0, Y = 0, W = 0, H = 0;
 		uint32 Flags = 0;
+		/** What the editor draws over the tab, relative to its content origin. */
+		TArray<StudioDockCutouts::FCut> Cutouts;
 
 		bool operator==(const FDockReport& O) const
 		{
-			return Host == O.Host && X == O.X && Y == O.Y && W == O.W && H == O.H && Flags == O.Flags;
+			return Host == O.Host && X == O.X && Y == O.Y && W == O.W && H == O.H && Flags == O.Flags && Cutouts == O.Cutouts;
 		}
 	};
 
@@ -209,6 +215,16 @@ namespace StudioDockImpl
 		Store32(OffH, static_cast<uint32>(R.H));
 		Store32(OffFlags, R.Flags);
 		Store32(OffFrame, ++Frame);
+		const int32 Count = FMath::Min(R.Cutouts.Num(), MaxCutouts);
+		Store32(OffCutoutCount, static_cast<uint32>(Count));
+		for (int32 I = 0; I < Count; ++I)
+		{
+			const SIZE_T At = OffCutouts + I * CutoutBytes;
+			Store32(At, static_cast<uint32>(R.Cutouts[I].X));
+			Store32(At + 4, static_cast<uint32>(R.Cutouts[I].Y));
+			Store32(At + 8, static_cast<uint32>(R.Cutouts[I].W));
+			Store32(At + 12, static_cast<uint32>(R.Cutouts[I].H));
+		}
 		FPlatformMisc::MemoryBarrier();
 		Store32(OffPluginSeq, Seq + 1);
 #if PLATFORM_WINDOWS
@@ -255,8 +271,8 @@ namespace StudioDockImpl
 #endif
 	}
 
-	/** Any other editor window on screen over the rect: a menu, popup, tooltip, modal or drag decorator. */
-	bool AnyWindowOver(const TArray<TSharedRef<SWindow>>& Windows, const TSharedPtr<SWindow>& Host, const FSlateRect& Rect)
+	/** Every other editor window on screen over the rect: a menu, popup, tooltip, notification, modal or drag decorator. */
+	void WindowsOver(const TArray<TSharedRef<SWindow>>& Windows, const TSharedPtr<SWindow>& Host, const FSlateRect& Rect, TArray<FSlateRect>& Out)
 	{
 		for (const TSharedRef<SWindow>& W : Windows)
 		{
@@ -265,15 +281,115 @@ namespace StudioDockImpl
 				const FSlateRect R = W->GetRectInScreen();
 				if (R.GetSize().X > 0.f && R.GetSize().Y > 0.f && FSlateRect::DoRectanglesIntersect(R, Rect))
 				{
-					return true;
+					Out.Add(R);
 				}
 			}
-			if (AnyWindowOver(W->GetChildWindows(), Host, Rect))
+			WindowsOver(W->GetChildWindows(), Host, Rect, Out);
+		}
+	}
+
+	/**
+	 * A widget's laid-out rect on the desktop, from its last paint, without any render
+	 * transform: GetAbsolutePosition and GetAbsoluteSize include it.
+	 */
+	FSlateRect LayoutRect(const FGeometry& G)
+	{
+		const FSlateLayoutTransform L = G.GetAccumulatedLayoutTransform();
+		const FVector2f TopLeft = L.TransformPoint(FVector2f::ZeroVector);
+		const FVector2f BottomRight = L.TransformPoint(FVector2f(G.GetLocalSize()));
+		return FSlateRect(TopLeft.X, TopLeft.Y, BottomRight.X, BottomRight.Y);
+	}
+
+	/**
+	 * Where an overlay in the host window paints, added to Out. A layer the size of
+	 * the window (the popup layer, a full-window container) is looked inside: its
+	 * children are the overlays, and an empty one paints nothing. Anything else is
+	 * one overlay, at its painted rect: a drawer sliding in shows only the part
+	 * its content has slid into.
+	 */
+	void AddOverlay(const TSharedRef<SWidget>& W, const FSlateRect& Window, int32 Depth, TArray<FSlateRect>& Out)
+	{
+		if (!W->GetVisibility().IsVisible())
+		{
+			return;
+		}
+		const FGeometry& G = W->GetTickSpaceGeometry();
+		const FSlateRect Laid = LayoutRect(G);
+		if (StudioDockCutouts::IsEmpty(Laid))
+		{
+			return;
+		}
+		TArray<TSharedRef<SWidget>> Children;
+		if (FChildren* Kids = W->GetChildren())
+		{
+			for (int32 I = 0; I < Kids->Num(); ++I)
 			{
-				return true;
+				const TSharedRef<SWidget> Child = Kids->GetChildAt(I);
+				if (Child != SNullWidget::NullWidget && Child->GetVisibility().IsVisible())
+				{
+					Children.Add(Child);
+				}
 			}
 		}
-		return false;
+		if (StudioDockCutouts::CoversWindow(Laid, Window) && Depth < 4)
+		{
+			for (const TSharedRef<SWidget>& Child : Children)
+			{
+				AddOverlay(Child, Window, Depth + 1, Out);
+			}
+			return;
+		}
+		FVector2D Offset = FVector2D::ZeroVector;
+		if (Children.Num() > 0)
+		{
+			const FGeometry& C = Children[0]->GetTickSpaceGeometry();
+			Offset = FVector2D(C.GetRenderBoundingRect().GetTopLeft()) - FVector2D(LayoutRect(C).GetTopLeft());
+		}
+		const FSlateRect Painted = StudioDockCutouts::Painted(Laid, Offset, W->GetClipping() != EWidgetClipping::Inherit);
+		if (!StudioDockCutouts::IsEmpty(Painted))
+		{
+			Out.Add(Painted);
+		}
+	}
+
+	/**
+	 * What Slate paints over the dock area inside the host window itself: drawers,
+	 * the debug console, in-window menus and notifications. The window's root
+	 * overlay paints its slots in order, so only the slots after the one holding
+	 * the area are over it.
+	 */
+	void InWindowOverlays(const TSharedRef<SWindow>& Window, const TSharedPtr<SWidget>& AreaWidget, TArray<FSlateRect>& Out)
+	{
+		FChildren* Top = Window->GetChildren();
+		if (!AreaWidget.IsValid() || !Top || Top->Num() == 0)
+		{
+			return;
+		}
+		const TSharedRef<SWidget> Root = Top->GetChildAt(0);
+		TSet<const SWidget*> Chain;
+		for (TSharedPtr<SWidget> W = AreaWidget; W.IsValid(); W = W->GetParentWidget())
+		{
+			Chain.Add(W.Get());
+		}
+		FChildren* Slots = Root->GetChildren();
+		if (!Chain.Contains(&Root.Get()) || !Slots)
+		{
+			return;
+		}
+		const FSlateRect WindowRect = LayoutRect(Root->GetTickSpaceGeometry());
+		bool bAfterArea = false;
+		for (int32 I = 0; I < Slots->Num(); ++I)
+		{
+			const TSharedRef<SWidget> Slot = Slots->GetChildAt(I);
+			if (Chain.Contains(&Slot.Get()))
+			{
+				bAfterArea = true;
+			}
+			else if (bAfterArea)
+			{
+				AddOverlay(Slot, WindowRect, 0, Out);
+			}
+		}
 	}
 
 	/** Where the tab is now, written only when it changed. */
@@ -307,11 +423,21 @@ namespace StudioDockImpl
 				const bool bOnScreen = Window->IsVisible() && !Window->IsWindowMinimized() && T->IsForeground() && bPaintedLastRender;
 				if (bOnScreen && R.W > 0 && R.H > 0)
 				{
-					R.Flags |= FlagVisible;
-					if (FSlateApplication::Get().IsDragDropping() || AnyWindowOver(FSlateApplication::Get().GetTopLevelWindows(), Window, PaintedRect))
+					R.Flags |= FlagVisible | FlagCutouts;
+					// The editor's own windows over the tab also put Studio under them (kOverlay);
+					// what it paints inside the host can only show through a cutout.
+					TArray<FSlateRect> Over;
+					WindowsOver(FSlateApplication::Get().GetTopLevelWindows(), Window, PaintedRect, Over);
+					if (FSlateApplication::Get().IsDragDropping() || Over.Num() > 0)
 					{
 						R.Flags |= FlagOverlay;
 					}
+					InWindowOverlays(Window.ToSharedRef(), Area.Pin(), Over);
+					// The rect Studio's window is placed at: the reported one, whole pixels.
+					const float TabLeft = static_cast<float>(FMath::RoundToInt(PaintedRect.Left));
+					const float TabTop = static_cast<float>(FMath::RoundToInt(PaintedRect.Top));
+					const FSlateRect TabRect(TabLeft, TabTop, TabLeft + R.W, TabTop + R.H);
+					R.Cutouts = StudioDockCutouts::Pack(Over, TabRect, MaxCutouts);
 				}
 			}
 		}
@@ -769,6 +895,11 @@ void FStudioDock::OpenAfterSetup()
 		// The tab only held the setup page.
 		CloseTab();
 	}
+}
+
+void FStudioDock::InWindowOverlays(const TSharedRef<SWindow>& Window, const TSharedPtr<SWidget>& Area, TArray<FSlateRect>& Out)
+{
+	DockImpl::InWindowOverlays(Window, Area, Out);
 }
 
 void FStudioDock::SetDocked(bool bDocked)

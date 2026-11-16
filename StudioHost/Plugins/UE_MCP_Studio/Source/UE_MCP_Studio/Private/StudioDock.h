@@ -3,6 +3,10 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Layout/SlateRect.h"
+
+class SWidget;
+class SWindow;
 
 /**
  * Docked mode: Studio's window held over the "UE-MCP Studio" dock tab.
@@ -15,6 +19,11 @@
  * on screen go into a named shared-memory block, written only when something
  * changed, with a named event set after each write. Studio writes its mode and
  * its requests (open or close this tab) into the same block.
+ *
+ * The report also lists what the editor draws over the tab (kCutouts): drawers
+ * and in-window popups Slate paints inside the host window, and the editor's
+ * own windows above it. Studio cuts those rects out of its window, so they
+ * show over it as over any tab, and take the clicks.
  *
  * Names and layout are studio-window.exe's apps/window/src/dock.h, layout 1,
  * keyed by the daemon's project key. Change both together.
@@ -56,4 +65,10 @@ public:
 
 	/** Close the dock tab when it is open. Studio hides; the mode is kept. */
 	static void CloseTab();
+
+	/**
+	 * What Slate painted over Area inside Window at its last paint, desktop space:
+	 * the overlays a dock report cuts out of Studio from inside the host window.
+	 */
+	static void InWindowOverlays(const TSharedRef<SWindow>& Window, const TSharedPtr<SWidget>& Area, TArray<FSlateRect>& Out);
 };
