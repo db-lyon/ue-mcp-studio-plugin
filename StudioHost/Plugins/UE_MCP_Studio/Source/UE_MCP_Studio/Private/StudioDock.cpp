@@ -288,10 +288,16 @@ namespace StudioDockImpl
 		}
 	}
 
-	/** A widget's laid-out rect on the desktop, from its last paint. */
+	/**
+	 * A widget's laid-out rect on the desktop, from its last paint, without any render
+	 * transform: GetAbsolutePosition and GetAbsoluteSize include it.
+	 */
 	FSlateRect LayoutRect(const FGeometry& G)
 	{
-		return FSlateRect::FromPointAndExtent(FVector2D(G.GetAbsolutePosition()), FVector2D(G.GetAbsoluteSize()));
+		const FSlateLayoutTransform L = G.GetAccumulatedLayoutTransform();
+		const FVector2f TopLeft = L.TransformPoint(FVector2f::ZeroVector);
+		const FVector2f BottomRight = L.TransformPoint(FVector2f(G.GetLocalSize()));
+		return FSlateRect(TopLeft.X, TopLeft.Y, BottomRight.X, BottomRight.Y);
 	}
 
 	/**
