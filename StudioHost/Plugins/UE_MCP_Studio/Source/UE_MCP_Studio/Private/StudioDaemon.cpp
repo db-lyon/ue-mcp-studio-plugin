@@ -358,7 +358,7 @@ FString FStudioDaemon::UiUrl(const FStudioDaemonInfo& Info)
 
 bool FStudioDaemon::StartDaemon(FString& OutError)
 {
-	return SpawnNpx({ FString::Printf(TEXT("-y %s daemon start \"%s\""), *PackageSpec(), *ProjectFile()) }, OutError);
+	return SpawnUeMcp({ FString::Printf(TEXT("daemon start \"%s\""), *ProjectFile()) }, OutError);
 }
 
 FString FStudioDaemon::UserDir()
@@ -481,9 +481,9 @@ bool FStudioDaemon::InstallExtensionAndStart(FString& OutError)
 		}
 		return bStarted;
 	}
-	const bool bStarted = SpawnNpx({
-		FString::Printf(TEXT("-y %s extension install \"%s\" \"%s\""), *PackageSpec(), *ExtensionManifestUrl(), *ProjectFile()),
-		FString::Printf(TEXT("-y %s daemon start \"%s\""), *PackageSpec(), *ProjectFile()),
+	const bool bStarted = SpawnUeMcp({
+		FString::Printf(TEXT("extension install \"%s\" \"%s\""), *ExtensionManifestUrl(), *ProjectFile()),
+		FString::Printf(TEXT("daemon start \"%s\""), *ProjectFile()),
 	}, OutError);
 	if (bStarted)
 	{
@@ -704,7 +704,7 @@ bool FStudioDaemon::InstallBridge(FString& OutError)
 	// No bridge yet, so no version to pin. The client path is always binaries (spec section 8), and
 	// Studio is the MCP client, so init leaves other clients' configs alone. Feedback takes the
 	// setup page's recommended default, since this path runs only when its plan never arrived.
-	return SpawnNpx({ FString::Printf(TEXT("-y %s init --yes --json --install=binary --clients= --feedback --project=\"%s\""), *PackageSpec(), *ProjectFile()) }, OutError);
+	return SpawnUeMcp({ FString::Printf(TEXT("init --yes --json --install=binary --clients= --feedback --project=\"%s\""), *ProjectFile()) }, OutError);
 }
 
 FString FStudioDaemon::SetupPlanPath()
@@ -718,7 +718,7 @@ bool FStudioDaemon::StartSetupPlan(FString& OutError)
 	IFileManager::Get().Delete(*Plan, false, true, true);
 	IFileManager::Get().MakeDirectory(*FPaths::GetPath(Plan), true);
 	// No --clients, so the plan carries init's own default selection for each detected client.
-	return SpawnNpx({ FString::Printf(TEXT("-y %s init --yes --json --dry-run --install=binary --project=\"%s\""), *PackageSpec(), *ProjectFile()) }, OutError, Plan);
+	return SpawnUeMcp({ FString::Printf(TEXT("init --yes --json --dry-run --install=binary --project=\"%s\""), *ProjectFile()) }, OutError, Plan);
 }
 
 FString FStudioDaemon::SetupFlags(const FStudioSetupOptions& Options)
@@ -751,7 +751,7 @@ bool FStudioDaemon::RunSetup(const FStudioSetupOptions& Options, FString& OutErr
 	const FString Result = SetupResultPath();
 	IFileManager::Get().Delete(*Result, false, true, true);
 	IFileManager::Get().MakeDirectory(*FPaths::GetPath(Result), true);
-	return SpawnNpx({ FString::Printf(TEXT("-y %s init --yes --json --install=binary%s --project=\"%s\""), *PackageSpec(), *SetupFlags(Options), *ProjectFile()) }, OutError, Result);
+	return SpawnUeMcp({ FString::Printf(TEXT("init --yes --json --install=binary%s --project=\"%s\""), *SetupFlags(Options), *ProjectFile()) }, OutError, Result);
 }
 
 FString FStudioDaemon::FeedbackAuthPath()
@@ -764,7 +764,7 @@ bool FStudioDaemon::StartFeedbackAuth(FString& OutError)
 	const FString Progress = FeedbackAuthPath();
 	IFileManager::Get().Delete(*Progress, false, true, true);
 	IFileManager::Get().MakeDirectory(*FPaths::GetPath(Progress), true);
-	return SpawnNpx({ FString::Printf(TEXT("-y %s auth --json"), *PackageSpec()) }, OutError, Progress);
+	return SpawnUeMcp({ TEXT("auth --json") }, OutError, Progress);
 }
 
 FString FStudioDaemon::StudioSettingsPath()
@@ -773,7 +773,16 @@ FString FStudioDaemon::StudioSettingsPath()
 		TEXT(".ue-mcp"), TEXT("data"), ProjectKey(), TEXT("studio"), TEXT("settings.json"));
 }
 
-bool FStudioDaemon::SpawnNpx(const TArray<FString>& Commands, FString& OutError, const FString& StdoutFile)
+FString FStudioDaemon::NpxArguments(const FString& Package, const FString& UeMcpArgs)
+{
+	// --package takes a registry spec or a local checkout alike. --min-release-age=0 lifts the user's
+	// npm release-age gate for ue-mcp's own release, which npx applies even to an excluded package
+	// (npm/cli#9765, ue-mcp#1510); without it a release days old fails with ETARGET. Studio's window
+	// and agent pass the same flags.
+	return FString::Printf(TEXT("-y --min-release-age=0 --package=%s ue-mcp %s"), *Package, *UeMcpArgs);
+}
+
+bool FStudioDaemon::SpawnUeMcp(const TArray<FString>& UeMcpCommands, FString& OutError, const FString& StdoutFile)
 {
 	// Every npx run may download ue-mcp, so each one needs the user's consent.
 	if (!FStudioConsent::IsGranted())
@@ -790,9 +799,13 @@ bool FStudioDaemon::SpawnNpx(const TArray<FString>& Commands, FString& OutError,
 	const FString NodeDir = FPaths::GetPath(Node);
 	const FString Log = LogPath();
 	IFileManager::Get().MakeDirectory(*FPaths::GetPath(Log), true);
-	for (const FString& Arguments : Commands)
+	// One release for every step, chosen now: an update can move the bridge between two runs.
+	const FString Package = PackageSpec();
+	TArray<FString> Commands;
+	for (const FString& UeMcpArgs : UeMcpCommands)
 	{
-		UE_LOG(LogStudio, Log, TEXT("npx %s"), *Arguments);
+		Commands.Add(NpxArguments(Package, UeMcpArgs));
+		UE_LOG(LogStudio, Log, TEXT("npx %s"), *Commands.Last());
 	}
 
 #if PLATFORM_WINDOWS
