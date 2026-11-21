@@ -23,6 +23,20 @@ bool FStudioDaemonPackageSpecTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStudioDaemonNpxArgumentsTest, "UE.Studio.Daemon.NpxArguments",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FStudioDaemonNpxArgumentsTest::RunTest(const FString&)
+{
+	TestEqual(TEXT("a release, with the release-age gate lifted"),
+		FStudioDaemon::NpxArguments(TEXT("ue-mcp@1.4.15-beta.1"), TEXT("daemon start \"D:\\My Game\\Game.uproject\"")),
+		FString(TEXT("-y --min-release-age=0 --package=ue-mcp@1.4.15-beta.1 ue-mcp daemon start \"D:\\My Game\\Game.uproject\"")));
+	TestEqual(TEXT("a local checkout from UE_MCP_STUDIO_PACKAGE"),
+		FStudioDaemon::NpxArguments(TEXT("\"D:\\src\\ue-mcp\""), TEXT("auth --json")),
+		FString(TEXT("-y --min-release-age=0 --package=\"D:\\src\\ue-mcp\" ue-mcp auth --json")));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStudioDaemonChannelDowngradeTest, "UE.Studio.Daemon.ChannelDowngrade",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 

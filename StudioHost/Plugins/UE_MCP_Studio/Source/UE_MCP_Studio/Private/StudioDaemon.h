@@ -97,6 +97,12 @@ public:
 	static FString ChoosePackageSpec(const FString& BridgeVersion, const FString& ManifestMin, const FString& ManifestPackage, const FString& ExtensionMin);
 
 	/**
+	 * The npx arguments that run ue-mcp from Package with UeMcpArgs, release-age gate lifted:
+	 * `-y --min-release-age=0 --package=<Package> ue-mcp <UeMcpArgs>`. The only place they are built.
+	 */
+	static FString NpxArguments(const FString& Package, const FString& UeMcpArgs);
+
+	/**
 	 * Whether a reinstall from the channel would replace the installed extension with an
 	 * older one: a prerelease ahead of the channel's version, or of the stable channel when
 	 * that version is not known yet.
@@ -211,6 +217,10 @@ private:
 	/** Fetch the release manifest and hand a newer Studio than Installed to the updater, or install it. */
 	static void CheckForStudioUpdate(const FString& Installed);
 
-	/** Run each command in turn, detached. Refused without install consent (FStudioConsent). Output appends to the Studio log, or stdout goes to StdoutFile when given. */
-	static bool SpawnNpx(const TArray<FString>& Commands, FString& OutError, const FString& StdoutFile = FString());
+	/**
+	 * Run ue-mcp with each of UeMcpCommands in turn, detached, through npx on PackageSpec() with
+	 * NpxArguments. Every ue-mcp run the plugin starts goes through here. Refused without install
+	 * consent (FStudioConsent). Output appends to the Studio log, or stdout goes to StdoutFile when given.
+	 */
+	static bool SpawnUeMcp(const TArray<FString>& UeMcpCommands, FString& OutError, const FString& StdoutFile = FString());
 };
