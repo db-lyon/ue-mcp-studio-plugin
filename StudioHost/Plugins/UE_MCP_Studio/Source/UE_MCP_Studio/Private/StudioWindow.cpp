@@ -164,7 +164,20 @@ bool FStudioWindow::IsOpen()
 	const FString Class = FString(TEXT("UEMCPStudioWindow.")) + FStudioDaemon::ProjectKey();
 	return ::FindWindowExW(HWND_MESSAGE, nullptr, *Class, nullptr) != nullptr;
 #else
-	return false;
+	// The Linux window writes its process id here while it runs. A crash leaves the file,
+	// and its id may belong to another program by now, so the process must be studio-window.
+	FString Text;
+	const FString File = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("UE_MCP_Studio"), TEXT("window.pid")));
+	if (!FFileHelper::LoadFileToString(Text, *File))
+	{
+		return false;
+	}
+	const int64 Pid = FCString::Atoi64(*Text.TrimStartAndEnd());
+	if (Pid <= 0 || Pid > MAX_uint32 || !FPlatformProcess::IsApplicationRunning(static_cast<uint32>(Pid)))
+	{
+		return false;
+	}
+	return FPaths::GetCleanFilename(FPlatformProcess::GetApplicationName(static_cast<uint32>(Pid))) == TEXT("studio-window");
 #endif
 }
 
